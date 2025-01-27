@@ -1,6 +1,0 @@
-# this contains suspicious mounts you want 
-# try_umounted at post-mount.sh
-# example
-# /system
-# /system_ext
-/debug_ramdisk
