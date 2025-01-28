@@ -1,33 +1,34 @@
-From 02bf1844bc5f47e891d4a6327164ff1083837e4c Mon Sep 17 00:00:00 2001
-From: cvnertnc
-Date: Mon, 27 Jan 2025 13:45:55 +0300
-Subject: [PATCH] Kernel: Patched for SUSFS
+From caf6d311b4dd34fc19ba7db7358b20967c859292 Mon Sep 17 00:00:00 2001
+From: cvnertnc <the.civanertunc@gmail.com>
+Date: Mon, 27 Jan 2025 19:09:45 +0000
+Subject: [PATCH] Kernel: Nova Patched for SUSFS
 
 ---
- fs/Makefile               |   2 +
- fs/dcache.c               |  14 +
- fs/namei.c                | 140 ++++++
- fs/namespace.c            | 292 ++++++++++++-
- fs/notify/fdinfo.c        |  48 ++
- fs/overlayfs/inode.c      |   8 +
- fs/overlayfs/overlayfs.h  |   3 +
- fs/overlayfs/readdir.c    |  12 +
- fs/overlayfs/super.c      |  12 +
- fs/overlayfs/util.c       |  14 +
- fs/proc/cmdline.c         |  10 +
- fs/proc/fd.c              |  17 +
- fs/proc/task_mmu.c        |  16 +
- fs/proc_namespace.c       |  22 +
- fs/readdir.c              |  15 +
- fs/stat.c                 |  18 +
- fs/statfs.c               |  43 ++
- include/linux/mount.h     |   3 +
- include/linux/sched.h     |   4 +
- kernel/kallsyms.c         |  11 +
- kernel/sys.c              |   6 +
+ fs/Makefile              |   2 +
+ fs/dcache.c              |  14 ++
+ fs/namei.c               | 140 +++++++++++++++++++
+ fs/namespace.c           | 292 ++++++++++++++++++++++++++++++++++++++-
+ fs/notify/fdinfo.c       |  48 +++++++
+ fs/overlayfs/inode.c     |   8 ++
+ fs/overlayfs/overlayfs.h |   3 +
+ fs/overlayfs/readdir.c   |  12 ++
+ fs/overlayfs/super.c     |  12 ++
+ fs/overlayfs/util.c      |  14 ++
+ fs/proc/cmdline.c        |  10 ++
+ fs/proc/fd.c             |  17 +++
+ fs/proc/task_mmu.c       |  16 +++
+ fs/proc_namespace.c      |  22 +++
+ fs/readdir.c             |  15 ++
+ fs/stat.c                |  18 +++
+ fs/statfs.c              |  43 ++++++
+ include/linux/mount.h    |   3 +
+ include/linux/sched.h    |   4 +
+ kernel/kallsyms.c        |  11 ++
+ kernel/sys.c             |   6 +
+ 21 files changed, 709 insertions(+), 1 deletion(-)
 
 diff --git a/fs/Makefile b/fs/Makefile
-index c48e22a61fc0..c64192cd5765 100644
+index c344dfea6..e5d0ea407 100644
 --- a/fs/Makefile
 +++ b/fs/Makefile
 @@ -15,6 +15,8 @@ obj-y :=	open.o read_write.o file_table.o super.o \
@@ -40,7 +41,7 @@ index c48e22a61fc0..c64192cd5765 100644
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
 diff --git a/fs/dcache.c b/fs/dcache.c
-index 0301c5dd5e5f..00ae21b0da55 100644
+index 0301c5dd5..00ae21b0d 100644
 --- a/fs/dcache.c
 +++ b/fs/dcache.c
 @@ -39,6 +39,9 @@
@@ -79,7 +80,7 @@ index 0301c5dd5e5f..00ae21b0da55 100644
  		if (dentry->d_parent != parent)
  			goto next;
 diff --git a/fs/namei.c b/fs/namei.c
-index a5bc1e8d4641..ca02662a123b 100644
+index a5bc1e8d4..ca02662a1 100644
 --- a/fs/namei.c
 +++ b/fs/namei.c
 @@ -39,6 +39,9 @@
@@ -358,7 +359,7 @@ index a5bc1e8d4641..ca02662a123b 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index c938f67dea42..1e2f4f55509e 100644
+index c938f67de..1e2f4f555 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,39 @@
@@ -777,7 +778,7 @@ index c938f67dea42..1e2f4f55509e 100644
 +#endif
 \ No newline at end of file
 diff --git a/fs/notify/fdinfo.c b/fs/notify/fdinfo.c
-index c62a87ee3b00..62e084ec0c6d 100644
+index c62a87ee3..62e084ec0 100644
 --- a/fs/notify/fdinfo.c
 +++ b/fs/notify/fdinfo.c
 @@ -13,6 +13,9 @@
@@ -868,7 +869,7 @@ index c62a87ee3b00..62e084ec0c6d 100644
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
  			   inotify_mark_user_mask(mark));
 diff --git a/fs/overlayfs/inode.c b/fs/overlayfs/inode.c
-index d19cdfe53ff8..5db4237d75d8 100644
+index d19cdfe53..5db4237d7 100644
 --- a/fs/overlayfs/inode.c
 +++ b/fs/overlayfs/inode.c
 @@ -69,6 +69,14 @@ int ovl_getattr(const struct path *path, struct kstat *stat,
@@ -887,7 +888,7 @@ index d19cdfe53ff8..5db4237d75d8 100644
  	old_cred = ovl_override_creds(dentry->d_sb);
  	err = vfs_getattr(&realpath, stat, request_mask, flags);
 diff --git a/fs/overlayfs/overlayfs.h b/fs/overlayfs/overlayfs.h
-index fdf83a10a9d3..c204e0908778 100644
+index fdf83a10a..c204e0908 100644
 --- a/fs/overlayfs/overlayfs.h
 +++ b/fs/overlayfs/overlayfs.h
 @@ -199,6 +199,9 @@ bool ovl_dentry_weird(struct dentry *dentry);
@@ -901,7 +902,7 @@ index fdf83a10a9d3..c204e0908778 100644
  struct dentry *ovl_dentry_upper(struct dentry *dentry);
  struct dentry *ovl_dentry_lower(struct dentry *dentry);
 diff --git a/fs/overlayfs/readdir.c b/fs/overlayfs/readdir.c
-index b00f1a9d21ad..aac4c49f21e8 100644
+index b00f1a9d2..aac4c49f2 100644
 --- a/fs/overlayfs/readdir.c
 +++ b/fs/overlayfs/readdir.c
 @@ -838,7 +838,19 @@ static int ovl_dir_open(struct inode *inode, struct file *file)
@@ -925,7 +926,7 @@ index b00f1a9d21ad..aac4c49f21e8 100644
  	if (IS_ERR(realfile)) {
  		kfree(od);
 diff --git a/fs/overlayfs/super.c b/fs/overlayfs/super.c
-index 9d3192f26cf6..3e727f94b811 100644
+index 01cd5a2cb..59c03f853 100644
 --- a/fs/overlayfs/super.c
 +++ b/fs/overlayfs/super.c
 @@ -282,6 +282,18 @@ static int ovl_statfs(struct dentry *dentry, struct kstatfs *buf)
@@ -948,7 +949,7 @@ index 9d3192f26cf6..3e727f94b811 100644
  
  	err = vfs_statfs(&path, buf);
 diff --git a/fs/overlayfs/util.c b/fs/overlayfs/util.c
-index e2244c134c9c..8746024a17ea 100644
+index e2244c134..8746024a1 100644
 --- a/fs/overlayfs/util.c
 +++ b/fs/overlayfs/util.c
 @@ -142,6 +142,20 @@ void ovl_path_lower(struct dentry *dentry, struct path *path)
@@ -973,7 +974,7 @@ index e2244c134c9c..8746024a17ea 100644
  {
  	enum ovl_path_type type = ovl_path_type(dentry);
 diff --git a/fs/proc/cmdline.c b/fs/proc/cmdline.c
-index 3795733934f7..6535abe10147 100644
+index 379573393..6535abe10 100644
 --- a/fs/proc/cmdline.c
 +++ b/fs/proc/cmdline.c
 @@ -6,12 +6,22 @@
@@ -1000,7 +1001,7 @@ index 3795733934f7..6535abe10147 100644
  	seq_printf(m, "%s\n", saved_command_line);
  #else
 diff --git a/fs/proc/fd.c b/fs/proc/fd.c
-index 96fc70225e54..f5cc2d5984d7 100644
+index 96fc70225..f5cc2d598 100644
 --- a/fs/proc/fd.c
 +++ b/fs/proc/fd.c
 @@ -12,6 +12,9 @@
@@ -1045,7 +1046,7 @@ index 96fc70225e54..f5cc2d5984d7 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index a8d91b6c82b9..80dc93436170 100644
+index cbfbfdcc9..705ae4118 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -19,6 +19,9 @@
@@ -1058,7 +1059,7 @@ index a8d91b6c82b9..80dc93436170 100644
  
  #include <asm/elf.h>
  #include <asm/tlb.h>
-@@ -347,6 +350,10 @@ static void show_vma_header_prefix(struct seq_file *m,
+@@ -353,6 +356,10 @@ static void show_vma_header_prefix(struct seq_file *m,
  		   MAJOR(dev), MINOR(dev), ino);
  }
  
@@ -1069,7 +1070,7 @@ index a8d91b6c82b9..80dc93436170 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  {
-@@ -361,8 +368,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+@@ -367,8 +374,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
@@ -1088,7 +1089,7 @@ index a8d91b6c82b9..80dc93436170 100644
  	}
  
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
-index b859aaeecb27..3d3c08a1bf4e 100644
+index b859aaeec..3d3c08a1b 100644
 --- a/fs/proc_namespace.c
 +++ b/fs/proc_namespace.c
 @@ -12,12 +12,19 @@
@@ -1148,7 +1149,7 @@ index b859aaeecb27..3d3c08a1bf4e 100644
  	if (sb->s_op->show_devname) {
  		seq_puts(m, "device ");
 diff --git a/fs/readdir.c b/fs/readdir.c
-index e6f4c7b8884b..82a2cc6a6edb 100644
+index e6f4c7b88..82a2cc6a6 100644
 --- a/fs/readdir.c
 +++ b/fs/readdir.c
 @@ -22,6 +22,10 @@
@@ -1188,7 +1189,7 @@ index e6f4c7b8884b..82a2cc6a6edb 100644
  	if (unlikely(buf->error))
  		return buf->error;
 diff --git a/fs/stat.c b/fs/stat.c
-index e3845fe2d4c8..fc63281a507d 100644
+index e3845fe2d..fc63281a5 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
@@ -1226,7 +1227,7 @@ index e3845fe2d4c8..fc63281a507d 100644
  	stat->ino = inode->i_ino;
  	stat->mode = inode->i_mode;
 diff --git a/fs/statfs.c b/fs/statfs.c
-index e6ceb3e8774f..5f334374baff 100644
+index e6ceb3e87..5f334374b 100644
 --- a/fs/statfs.c
 +++ b/fs/statfs.c
 @@ -9,6 +9,10 @@
@@ -1313,7 +1314,7 @@ index e6ceb3e8774f..5f334374baff 100644
  	drop_super(s);
  	return err;
 diff --git a/include/linux/mount.h b/include/linux/mount.h
-index 1ff21c19b0b9..99adc5d71846 100644
+index 1ff21c19b..99adc5d71 100644
 --- a/include/linux/mount.h
 +++ b/include/linux/mount.h
 @@ -69,6 +69,9 @@ struct vfsmount {
@@ -1327,10 +1328,10 @@ index 1ff21c19b0b9..99adc5d71846 100644
  
  struct file; /* forward dec */
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 39866dbc5bf7..7a713cebdde0 100644
+index 62e1c0b9d..6110f57a0 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
-@@ -1419,6 +1419,10 @@ struct task_struct {
+@@ -1399,6 +1399,10 @@ struct task_struct {
  	 * New fields for task_struct should be added above here, so that
  	 * they are included in the randomized portion of task_struct.
  	 */
@@ -1342,7 +1343,7 @@ index 39866dbc5bf7..7a713cebdde0 100644
  
  	/* CPU-specific state of this task: */
 diff --git a/kernel/kallsyms.c b/kernel/kallsyms.c
-index 4ad367a05274..13371ade19ed 100644
+index 4ad367a05..13371ade1 100644
 --- a/kernel/kallsyms.c
 +++ b/kernel/kallsyms.c
 @@ -647,8 +647,19 @@ static int s_show(struct seq_file *m, void *p)
@@ -1366,7 +1367,7 @@ index 4ad367a05274..13371ade19ed 100644
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index e972caabc6db..dc36374294b8 100644
+index e972caabc..dc3637429 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
 @@ -1187,6 +1187,9 @@ static int override_release(char __user *release, size_t len)

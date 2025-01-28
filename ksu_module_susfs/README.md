@@ -1,19 +1,30 @@
-## A KernelSU module for SUS-FS patched kernel ##
+# A KernelSU module for SUSFS patched kernel #
 
-This module is used for installing a userspace helper tool called **ksu_susfs** and **sus_su** into /data/adb/ and provides a script example to communicate with SUSFS kernel
+This module installs a userspace helper tool called **ksu_susfs** and **sus_su** into /data/adb/ksu and provides a script to communicate with SUSFS kernel.
+This module provides root hiding for KernelSU on the kernel level.
 
-- To enable umount for zygote spawned system process on boot, create a new file to `/data/adb/susfs_umount_for_zygote_system_process` and reboot.
+## Notes
+- Make sure you have a custom kernel with SUSFS patched in it. Check the custom kernel source to see if it has SUSFS.
+- Make sure the kernel is using SUSFS 1.5.2 or later for effective hide.
+- Shamiko v1.2.1 or later is acceptable
+- HideMyApplist is acceptable
+- ReVanced root module compatible
+- Recommended to use [bindhosts](https://github.com/backslashxx/bindhosts) if you want to use systemless hosts
 
-- To disable `KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT` on boot, create a new file to `/data/adb/susfs_no_auto_add_sus_ksu_default_mount` and reboot.
+## Adding ro.boot.vbmeta.digest value
+This module will now have a directory called `VerifiedBootHash` in `/data/adb` containing `VerifiedBootHash.txt` for users with missing `ro.boot.vbmeta.digest` value to prevent partition modified and abnormal boot state detection. 
+- Copy your VerifiedBootHash in the Key Attestation demo and paste it to `/data/adb/VerifiedBootHash/VerifiedBootHash.txt`
 
-- To disable `KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT` on boot, create a new file to `/data/adb/susfs_no_auto_add_sus_bind_mount` and reboot.
+## Credits
+susfs4ksu: https://gitlab.com/simonpunk/susfs4ksu/
 
-- To disable `KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT` on boot, create a new file to `/data/adb/susfs_no_auto_add_try_umount_for_bind_mount` and reboot.
-
-- To prevent a new `bind mount` from being added to `auto add try_umount`, it is suggested to do it in post-fs-data.d/ before post-fs-data.sh, and do following steps in the script:
-    1. setup proper permission on source path
-    2. add target mount path to sus_kstat
-    3. bind mount the target path
-    4. update sus_kstat on target path
-  so now it won't automatically add the path to try_umount and the mount will stay for all processes while still be hidden from mountinfo, stat and statfs
-  
+## Buy us some coffee ☕
+### simonpunk
+PayPal: `kingjeffkimo@yahoo.com.tw`
+<br>BTC: `bc1qgkwvsfln02463zpjf7z6tds8xnpeykggtgk4kw`
+### sidex15
+PayPal: `sidex15.official@gmail.com`
+<br>ETH (ERC20): `0xa52151ebd2718a00af9e1dfcacfb30e1d3a94860`
+<br>USDT (TRC20): `TAUbxzug7cygExFunhFBiG6ntmbJwz7Skn`
+<br>USDT (ERC20): 
+`0xa52151ebd2718a00af9e1dfcacfb30e1d3a94860`
