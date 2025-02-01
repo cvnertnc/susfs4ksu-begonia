@@ -1,6 +1,6 @@
-From cbbadfe2639cb83c5b377d34543c9a1753957129 Mon Sep 17 00:00:00 2001
+From 4859f0bf62c925241c62eabbd81e640e4efe5d67 Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Mon, 27 Jan 2025 18:25:40 +0000
+Date: Sat, 1 Feb 2025 15:20:56 +0000
 Subject: [PATCH] fs: Power implement KernelSU
 
 ---
@@ -14,7 +14,7 @@ Subject: [PATCH] fs: Power implement KernelSU
  7 files changed, 86 insertions(+)
 
 diff --git a/drivers/input/input.c b/drivers/input/input.c
-index 55d84eaf9..19f128167 100644
+index 55d84eaf92e7..19f12816720f 100644
 --- a/drivers/input/input.c
 +++ b/drivers/input/input.c
 @@ -467,10 +467,19 @@ static int input_get_disposition(struct input_dev *dev,
@@ -38,7 +38,7 @@ index 55d84eaf9..19f128167 100644
  	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN)
  		add_input_randomness(type, code, value);
 diff --git a/fs/devpts/inode.c b/fs/devpts/inode.c
-index 32f6f1c68..56cb66fb9 100644
+index 32f6f1c683d9..56cb66fb9699 100644
 --- a/fs/devpts/inode.c
 +++ b/fs/devpts/inode.c
 @@ -602,6 +602,10 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
@@ -63,7 +63,7 @@ index 32f6f1c68..56cb66fb9 100644
  		return NULL;
  	return dentry->d_fsdata;
 diff --git a/fs/exec.c b/fs/exec.c
-index 8f0dc75d5..ebc49b5d9 100644
+index 8f0dc75d57a7..ebc49b5d9aad 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
 @@ -1713,6 +1713,13 @@ static int exec_binprm(struct linux_binprm *bprm)
@@ -94,7 +94,7 @@ index 8f0dc75d5..ebc49b5d9 100644
  	struct linux_binprm *bprm;
  	struct file *file;
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 5fcd13096..10fdce155 100644
+index 540ed0ab08e1..e2ed3dcd59eb 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -1705,6 +1705,40 @@ void __detach_mounts(struct dentry *dentry)
@@ -139,7 +139,7 @@ index 5fcd13096..10fdce155 100644
   * Is the caller allowed to modify his namespace?
   */
 diff --git a/fs/open.c b/fs/open.c
-index 44133e71b..1b3d61b13 100644
+index 44133e71b512..1b3d61b13355 100644
 --- a/fs/open.c
 +++ b/fs/open.c
 @@ -354,6 +354,10 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
@@ -164,7 +164,7 @@ index 44133e71b..1b3d61b13 100644
  	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
  		return -EINVAL;
 diff --git a/fs/read_write.c b/fs/read_write.c
-index 0da6e4f19..e863dbd9b 100644
+index 0da6e4f19d7f..e863dbd9b54d 100644
 --- a/fs/read_write.c
 +++ b/fs/read_write.c
 @@ -429,9 +429,18 @@ ssize_t kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
@@ -187,7 +187,7 @@ index 0da6e4f19..e863dbd9b 100644
  	if (!(file->f_mode & FMODE_READ))
  		return -EBADF;
 diff --git a/fs/stat.c b/fs/stat.c
-index 0fda4b6b8..e3845fe2d 100644
+index 0fda4b6b8fb2..e3845fe2d4c8 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -148,6 +148,10 @@ int vfs_statx_fd(unsigned int fd, struct kstat *stat,
@@ -211,3 +211,4 @@ index 0fda4b6b8..e3845fe2d 100644
  
  	if ((flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT |
  		       AT_EMPTY_PATH | KSTAT_QUERY_FLAGS)) != 0)
+

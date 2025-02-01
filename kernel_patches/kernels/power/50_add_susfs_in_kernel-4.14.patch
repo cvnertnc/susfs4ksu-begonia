@@ -1,6 +1,6 @@
-From ea6867ba608127ac842ad3af398143228e7a7a56 Mon Sep 17 00:00:00 2001
+From 7f8a6281a754970ff90e3e341b0f8a5e8d8cd6db Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Sat, 1 Feb 2025 11:32:17 +0000
+Date: Sat, 1 Feb 2025 15:23:12 +0000
 Subject: [PATCH] Kernel: Power Patched for SUSFS
 
 ---
@@ -342,7 +342,7 @@ index a5bc1e8d4641..d384e412a5d7 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 10fdce155d26..3a2c33aa4b4f 100644
+index e2ed3dcd59eb..d5d77fe2d7cc 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,39 @@
@@ -621,7 +621,7 @@ index 10fdce155d26..3a2c33aa4b4f 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -2396,6 +2587,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2409,6 +2600,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -649,7 +649,7 @@ index 10fdce155d26..3a2c33aa4b4f 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2995,6 +3207,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -3008,6 +3220,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -665,7 +665,7 @@ index 10fdce155d26..3a2c33aa4b4f 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3072,6 +3293,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3085,6 +3306,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -676,7 +676,7 @@ index 10fdce155d26..3a2c33aa4b4f 100644
  
  	BUG_ON(!ns);
  
-@@ -3091,6 +3316,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3104,6 +3329,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -691,7 +691,7 @@ index 10fdce155d26..3a2c33aa4b4f 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3127,6 +3360,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3140,6 +3373,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -721,7 +721,7 @@ index 10fdce155d26..3a2c33aa4b4f 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3667,3 +3923,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3680,3 +3936,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -1395,4 +1395,3 @@ index e24d8009b8db..d54fbfa98d97 100644
  	up_read(&uts_sem);
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
-
