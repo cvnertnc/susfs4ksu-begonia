@@ -26,6 +26,8 @@ jobs:
           git fetch upstream kernel-4.14
 
       - name: Check for updates and sync branch
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           set -e
           new_commit=$(git rev-parse upstream/kernel-4.14)
