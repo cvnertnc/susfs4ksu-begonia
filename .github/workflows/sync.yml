@@ -60,5 +60,5 @@ jobs:
               
               git add update.md
               git commit -m "Update kernel-4.14: new commit $new_commit at $current_time"
-              git push origin kernel-4.14 --force
+              git push https://x-access-token:${GH_PAT}@github.com/cvnertnc/susfs4ksu-begonia.git kernel-4.14 --force
           fi
