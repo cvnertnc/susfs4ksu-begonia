@@ -1,0 +1,64 @@
+name: Sync kernel-4.14 branch daily
+
+on:
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Add GitLab remote and fetch kernel-4.14 branch
+        run: |
+          git remote add upstream https://gitlab.com/simonpunk/susfs4ksu.git || true
+          git fetch upstream kernel-4.14
+
+      - name: Check for updates and sync branch
+        run: |
+          set -e
+          new_commit=$(git rev-parse upstream/kernel-4.14)
+          echo "Latest upstream commit: $new_commit"
+
+          if git rev-parse --verify kernel-4.14 >/dev/null 2>&1; then
+              echo "Local kernel-4.14 branch exists."
+              git checkout kernel-4.14
+          else
+              echo "Local kernel-4.14 branch does not exist. Creating it."
+              git checkout -b kernel-4.14 upstream/kernel-4.14
+          fi
+          
+          if [ -f update.md ]; then
+              recorded_commit=$(grep -m1 "^Commit:" update.md | awk '{print $2}')
+              echo "Recorded commit in update.md: $recorded_commit"
+          else
+              echo "update.md does not exist. It will be created."
+              recorded_commit=""
+          fi
+          
+          if [ "$recorded_commit" = "$new_commit" ]; then
+              echo "No new update. Exiting."
+              exit 0
+          else
+              echo "New update detected. Updating branch."
+              git reset --hard upstream/kernel-4.14
+              
+              current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+              echo "Commit: $new_commit" > update.md
+              echo "Checked at: $current_time" >> update.md
+              
+              git add update.md
+              git commit -m "Update kernel-4.14: new commit $new_commit at $current_time"
+              git push origin kernel-4.14 --force
+          fi
