@@ -7,7 +7,7 @@ The userspace tool `ksu_susfs`, as well as the ksu module, require a susfs patch
 This is only experimental code, that said it can harm your system or cause performance hit, **YOU ARE WARNED** already.
 
 ### Compatibility
--The susfs kernel patches may differ for different kernel versions or even on the same kernel version, you may need to create your own patches for your kernel.
+The susfs kernel patches may differ for different kernel versions or even on the same kernel version, you may need to create your own patches for your kernel.
 
 <details><summary><big>Patch Instruction (For non-GKI only)</big></summary>
 
@@ -111,13 +111,13 @@ This is only experimental code, that said it can harm your system or cause perfo
 </details>
 
 ### Credits
-KernelSU: https://github.com/tiann/KernelSU
-KernelSU fork: https://github.com/5ec1cff/KernelSU
-@Kartatz: for ideas and original commit from https://github.com/Dominium-Apum/kernel_xiaomi_chime/pull/1/commits/74f8d4ecacd343432bb8137b7e7fbe3fd9fef189
+KernelSU: https://github.com/tiann/KernelSU  
+KernelSU fork: https://github.com/5ec1cff/KernelSU  
+@Kartatz: for ideas and original commit from https://github.com/Dominium-Apum/kernel_xiaomi_chime/pull/1/commits/74f8d4ecacd343432bb8137b7e7fbe3fd9fef189  
 
 ### Telegram
 @simonpunk
 
 ### Buy me a coffee
-PayPal: kingjeffkimo@yahoo.com.tw
-BTC: bc1qgkwvsfln02463zpjf7z6tds8xnpeykggtgk4kw
+PayPal: kingjeffkimo@yahoo.com.tw  
+BTC: bc1qgkwvsfln02463zpjf7z6tds8xnpeykggtgk4kw  
