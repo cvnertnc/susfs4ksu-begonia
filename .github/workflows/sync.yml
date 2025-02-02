@@ -62,3 +62,9 @@ jobs:
               git commit -m "Update kernel-4.14: new commit $new_commit at $current_time"
               git push origin kernel-4.14 --force
           fi
+
+      - name: Clear older runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh run list -L400 --json databaseId -q '.[].databaseId' | tail -n+5 | xargs -IID gh api "repos/$GITHUB_REPOSITORY/actions/runs/ID" -X DELETE || :
