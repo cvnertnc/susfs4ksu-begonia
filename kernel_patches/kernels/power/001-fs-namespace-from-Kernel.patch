@@ -1,0 +1,54 @@
+From 986d8144a30d2e518fbb3f6d4439734f34005e83 Mon Sep 17 00:00:00 2001
+From: wodanesdag <wodanesdag@proton.me>
+Date: Wed, 22 Jan 2025 14:54:24 +0700
+Subject: [PATCH] Revert "fs: namespace: Backport path_umount from 5.9 kernel"
+
+This reverts commit 13bc1e82828c627d4cbdfe15ea9e03d3f2a2738c.
+---
+ fs/namespace.c | 33 ---------------------------------
+ 1 file changed, 33 deletions(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 5fcd130966cd..30772b12aa79 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1730,39 +1730,6 @@ static inline bool may_mandlock(void)
+ }
+ #endif
+ 
+-static int can_umount(const struct path *path, int flags)
+-{
+-    struct mount *mnt = real_mount(path->mnt);
+-
+-    if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
+-        return -EINVAL;
+-    if (!may_mount())
+-        return -EPERM;
+-    if (path->dentry != path->mnt->mnt_root)
+-        return -EINVAL;
+-    if (!check_mnt(mnt))
+-        return -EINVAL;
+-    if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
+-        return -EINVAL;
+-    if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
+-        return -EPERM;
+-    return 0;
+-}
+-
+-int path_umount(struct path *path, int flags)
+-{
+-    struct mount *mnt = real_mount(path->mnt);
+-    int ret;
+-
+-    ret = can_umount(path, flags);
+-    if (!ret)
+-        ret = do_umount(mnt, flags);
+-
+-    /* we mustn't call path_put() as that would clear mnt_expiry_mark */
+-    dput(path->dentry);
+-    mntput_no_expire(mnt);
+-    return ret;
+-}
+ /*
+  * Now umount can handle mount points as well as block devices.
+  * This is important for filesystems which use unnamed block devices.
