@@ -1,15 +1,16 @@
 ### Introduction
-- An addon root hiding kernel patches and userspace module for KernelSU.
+An addon root hiding kernel patches and userspace module for KernelSU.
 
-- The userspace tool `ksu_susfs`, as well as the ksu module, require a susfs patched kernel to work.
+The userspace tool `ksu_susfs`, as well as the ksu module, require a susfs patched kernel to work.
 
 ### Warning
-- This is only experimental code, that said it can harm your system or cause performance hit, **YOU ARE WARNED** already.
+This is only experimental code, that said it can harm your system or cause performance hit, **YOU ARE WARNED** already.
 
 ### Compatibility
-- The susfs kernel patches may differ for different kernel versions or even on the same kernel version, you may need to create your own patches for your kernel.
+-The susfs kernel patches may differ for different kernel versions or even on the same kernel version, you may need to create your own patches for your kernel.
 
 <details><summary><big>Patch Instruction (For non-GKI only)</big></summary>
+
 #### Patch Instruction (For non-GKI only)
 **- Prerequisite -**
 1. All susfs patches are based on the original official KernelSU (the one from weishu), so you should clone his repo for a better patching result.
@@ -34,11 +35,13 @@
 </details>
 
 <details><summary><big>Build ksu_susfs userspace tool</big></summary>
+
 #### Build ksu_susfs userspace tool
 1. Run `./build_ksu_susfs_tool.sh` to build the userspace tool `ksu_susfs`, and the arm64 and arm binary will be copied to `ksu_module_susfs/tools/` as well.
 2. Now you can also push the compiled `ksu_susfs` tool to `/data/adb/ksu/bin/` so that you can run it directly in adb root shell or termux root shell, as well as in your own ksu modules.
 
 <details><summary><big>Build sus_su userspace tool (Deprecated)</big></summary>
+
 #### Build sus_su userspace tool (Deprecated)
 **--Important Notes--**
 - sus_su userspace tool is now deprecated, as newer Xiaomi devices are found to have a root detection service running which is named "mrmd" and it is spawned by init process, and since sus_su mounted by overlayfs can't be umounted for process spawned by init process, so it will get detected unless there is a better umount scheme for init spawned process.
@@ -59,6 +62,7 @@
 </details>
 
 <details><summary><big>Build susfs4ksu module</big></summary>
+
 #### Build susfs4ksu module
 - The ksu module here is just a demo to show how to use it.
 - It will also copy the `ksu_susfs` and `sus_su` tool to `/data/adb/ksu/bin/` as well when installing the module.
@@ -68,12 +72,14 @@
 </details>
 
 <details><summary><big>Usage of ksu_susfs and supported features</big></summary>
+
 #### Usage of ksu_susfs and supported features
 - Run `ksu_susfs` in root shell for detailed usages.
 - See `$KernelSU_repo/kernel/Kconfig` for supported features after applying the susfs patches.
 </details>
 
 <details><summary><big>Other Building Tips</big></summary>
+
 #### Other Building Tips
 - To only remove the `-dirty` string from kernel release string, open file `$KERNEL_ROOT/scripts/setlocalversion`, then look for all the lines that containing `printf '%s' -dirty`, and replace it with `printf '%s' ''`.
 - Alternatively, If you want to directly hardcode the whole kernel release string, then open file `$KERNEL_ROOT/scripts/setlocalversion`, look for the last line `echo "$res"`, and for example, replace it with `echo "-android13-01-gb123456789012-ab12345678"`.
@@ -89,6 +95,7 @@
 </details>
 
 <details><summary><big>Known Compiler Issues</big></summary>
+
 #### Known Compiler Issues
    1. error: no member named 'android_kabi_reservedx' in 'struct yyyyyyyy'
 
@@ -96,6 +103,7 @@
 </details>
 
 <details><summary><big>Other Known Issues</big></summary>
+
 #### Other Known Issues
 - Some of the File Explorer Apps cannot display files/directories properly when a specific sub path of '/sdcard' or '/storage/emulated/0' is added to sus_path.
     1. Make sure the file explorer app has root allowed by KSU manager, because sus_path is only effective on no root allowed process uid.
@@ -103,13 +111,13 @@
 </details>
 
 ### Credits
-- KernelSU: https://github.com/tiann/KernelSU
-- KernelSU fork: https://github.com/5ec1cff/KernelSU
-- @Kartatz: for ideas and original commit from https://github.com/Dominium-Apum/kernel_xiaomi_chime/pull/1/commits/74f8d4ecacd343432bb8137b7e7fbe3fd9fef189
+KernelSU: https://github.com/tiann/KernelSU
+KernelSU fork: https://github.com/5ec1cff/KernelSU
+@Kartatz: for ideas and original commit from https://github.com/Dominium-Apum/kernel_xiaomi_chime/pull/1/commits/74f8d4ecacd343432bb8137b7e7fbe3fd9fef189
 
 ### Telegram
-- @simonpunk
+@simonpunk
 
 ### Buy me a coffee
-- PayPal: kingjeffkimo@yahoo.com.tw
-- BTC: bc1qgkwvsfln02463zpjf7z6tds8xnpeykggtgk4kw
+PayPal: kingjeffkimo@yahoo.com.tw
+BTC: bc1qgkwvsfln02463zpjf7z6tds8xnpeykggtgk4kw
