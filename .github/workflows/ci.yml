@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  schedule:
+    - cron: "0 16 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clear older runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh run list -L400 --json databaseId -q '.[].databaseId' | tail -n+5 | xargs -IID gh api "repos/$GITHUB_REPOSITORY/actions/runs/ID" -X DELETE || :
+
+  run_simon:
+    permissions: write-all
+    needs: check
+    uses: ./.github/workflows/simon.yml
+    secrets: inherit
+
+  run_wodan:
+    permissions: write-all
+    needs: check
+    uses: ./.github/workflows/wodan.yml
+    secrets: inherit
