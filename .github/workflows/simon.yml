@@ -1,8 +1,12 @@
-name: Sync kernel-4.14 branch daily
+name: Sync simon branch daily
 
 on:
-  schedule:
-    - cron: '0 16 * * *'
+  workflow_call:
+    inputs:
+      from_ci:
+        type: boolean
+        required: false
+        default: true
   workflow_dispatch:
 
 jobs:
@@ -31,12 +35,12 @@ jobs:
           new_commit=$(git rev-parse upstream/kernel-4.14)
           echo "Latest upstream commit: $new_commit"
 
-          if git rev-parse --verify kernel-4.14 >/dev/null 2>&1; then
-              echo "Local kernel-4.14 branch exists."
-              git checkout kernel-4.14
+          if git rev-parse --verify simon >/dev/null 2>&1; then
+              echo "Local simon branch exists."
+              git checkout simon
           else
-              echo "Local kernel-4.14 branch does not exist. Creating it."
-              git checkout -b kernel-4.14 upstream/kernel-4.14
+              echo "Local simon branch does not exist. Creating it."
+              git checkout -b simon upstream/kernel-4.14
           fi
           
           if [ -f update.md ]; then
@@ -59,8 +63,8 @@ jobs:
               echo "Checked at: $current_time" >> update.md
               
               git add update.md
-              git commit -m "Update kernel-4.14: new commit $new_commit at $current_time"
-              git push origin kernel-4.14 --force
+              git commit -m "Update simon: new commit $new_commit at $current_time"
+              git push origin simon --force
           fi
 
       - name: Clear older runs

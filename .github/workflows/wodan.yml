@@ -1,8 +1,12 @@
-name: Sync next-4.14 branch daily
+name: Sync wodan branch daily
 
 on:
-  schedule:
-    - cron: '0 16 * * *'
+  workflow_call:
+    inputs:
+      from_ci:
+        type: boolean
+        required: false
+        default: true
   workflow_dispatch:
 
 jobs:
