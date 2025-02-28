@@ -1,13 +1,12 @@
-From 13899ea10f72775e7a6e1b71e4fd73fd57352fb3 Mon Sep 17 00:00:00 2001
+From ce0ff7395188490934fb1b67446b6a351f22a2b4 Mon Sep 17 00:00:00 2001
 From: rifsxd <rifat.44.azad.rifs@gmail.com>
-Date: Tue, 25 Feb 2025 19:56:40 +0600
-Subject: [PATCH] kernel: patch susfs v1.5.5 to KernelSU-Next
- (7a08683c741f9d42bea8cb7f28823f07a57332bc)
+Date: Tue, 25 Feb 2025 20:10:43 +0600
+Subject: [PATCH] kernel: patch susfs v1.5.5 to KernelSU-Next v1.0.5
 
 ---
  .gitignore               |   3 +
  kernel/Kconfig           | 144 +++++++++++
- kernel/Makefile          |  79 +++++-
+ kernel/Makefile          |  81 +++++-
  kernel/allowlist.c       |  10 +-
  kernel/apk_sign.c        |   2 +-
  kernel/apk_sign.h        |   2 +-
@@ -21,10 +20,10 @@ Subject: [PATCH] kernel: patch susfs v1.5.5 to KernelSU-Next
  kernel/selinux/rules.c   |  16 +-
  kernel/selinux/selinux.c |  95 ++++++-
  kernel/selinux/selinux.h |  24 +-
- kernel/sucompat.c        |  52 +++-
+ kernel/sucompat.c        | 109 +++++++-
  kernel/throne_tracker.c  |   4 +-
  kernel/throne_tracker.h  |   2 +-
- 19 files changed, 946 insertions(+), 68 deletions(-)
+ 19 files changed, 1005 insertions(+), 70 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 706fd07f..0e6a2c9b 100644
@@ -191,7 +190,7 @@ index 0831a362..816905a1 100644
 +
  endmenu
 diff --git a/kernel/Makefile b/kernel/Makefile
-index aa380e9a..2feaa1d0 100644
+index aa380e9a..ffa4af3f 100644
 --- a/kernel/Makefile
 +++ b/kernel/Makefile
 @@ -150,4 +150,81 @@ endif
@@ -1462,19 +1461,23 @@ index 07120c25..d0dfdf9c 100644
  u32 ksu_get_devpts_sid();
  
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index 9f5d7ca9..b839d9bb 100644
+index 9f5d7ca9..b8bc59bf 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
-@@ -30,7 +30,7 @@ bool ksu_execve_sucompat_hook __read_mostly = true;
+@@ -28,9 +28,11 @@ bool ksu_faccessat_hook __read_mostly = true;
+ bool ksu_stat_hook __read_mostly = true;
+ bool ksu_execve_sucompat_hook __read_mostly = true;
  bool ksu_execveat_sucompat_hook __read_mostly = true;
++#ifndef CONFIG_KSU_SUSFS_SUS_SU
  bool ksu_devpts_hook __read_mostly = true;
++#endif
  
 -extern void escape_to_root();
 +extern void ksu_escape_to_root();
  
  static void __user *userspace_stack_buffer(const void *d, size_t len)
  {
-@@ -82,6 +82,31 @@ int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
+@@ -82,6 +84,31 @@ int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
  	return 0;
  }
  
@@ -1506,7 +1509,7 @@ index 9f5d7ca9..b839d9bb 100644
  int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
  {
  	// const char sh[] = SH_PATH;
-@@ -160,7 +185,7 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+@@ -160,7 +187,7 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
  	pr_info("do_execveat_common su found\n");
  	memcpy((void *)filename->name, sh, sizeof(sh));
  
@@ -1515,7 +1518,7 @@ index 9f5d7ca9..b839d9bb 100644
  
  	return 0;
  }
-@@ -193,7 +218,7 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
+@@ -193,7 +220,7 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
  	pr_info("sys_execve su found\n");
  	*filename_user = ksud_user_path();
  
@@ -1524,7 +1527,76 @@ index 9f5d7ca9..b839d9bb 100644
  
  	return 0;
  }
-@@ -347,3 +372,24 @@ void ksu_sucompat_exit()
+@@ -268,6 +295,56 @@ static int execve_handler_pre(struct kprobe *p, struct pt_regs *regs)
+ 					  NULL);
+ }
+ 
++#if 1
++static struct kprobe faccessat_kp = {
++	.symbol_name = SYS_FACCESSAT_SYMBOL,
++	.pre_handler = faccessat_handler_pre,
++};
++#else
++static struct kprobe faccessat_kp = {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
++	.symbol_name = "do_faccessat",
++#else
++	.symbol_name = "sys_faccessat",
++#endif
++	.pre_handler = faccessat_handler_pre,
++};
++#endif
++
++#if 1
++static struct kprobe newfstatat_kp = {
++	.symbol_name = SYS_NEWFSTATAT_SYMBOL,
++	.pre_handler = newfstatat_handler_pre,
++};
++#else
++static struct kprobe newfstatat_kp = {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
++	.symbol_name = "vfs_statx",
++#else
++	.symbol_name = "vfs_fstatat",
++#endif
++	.pre_handler = newfstatat_handler_pre,
++};
++#endif
++
++#if 1
++static struct kprobe execve_kp = {
++	.symbol_name = SYS_EXECVE_SYMBOL,
++	.pre_handler = execve_handler_pre,
++};
++#else
++static struct kprobe execve_kp = {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
++	.symbol_name = "do_execveat_common",
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
++	.symbol_name = "__do_execve_file",
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
++	.symbol_name = "do_execveat_common",
++#endif
++	.pre_handler = execve_handler_pre,
++};
++#endif
++
+ static int pts_unix98_lookup_pre(struct kprobe *p, struct pt_regs *regs)
+ {
+ 	struct inode *inode;
+@@ -281,6 +358,11 @@ static int pts_unix98_lookup_pre(struct kprobe *p, struct pt_regs *regs)
+ 	return ksu_handle_devpts(inode);
+ }
+ 
++static struct kprobe pts_unix98_lookup_kp = { .symbol_name =
++	"pts_unix98_lookup",
++.pre_handler =
++	pts_unix98_lookup_pre };
++
+ static struct kprobe *init_kprobe(const char *name,
+ 				  kprobe_pre_handler_t handler)
+ {
+@@ -347,3 +429,24 @@ void ksu_sucompat_exit()
  	pr_info("ksu_sucompat_exit: hooks disabled: execve/execveat_su, faccessat, stat, devpts\n");
  #endif
  }
