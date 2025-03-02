@@ -1,6 +1,6 @@
 From 90a38bb53482d8f5672ad29e8d979eb06d9af808 Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Tue, 25 Feb 2025 14:33:50 +0300
+Date: Tue, 25 Feb 2025 14:33:50 +0300 https://github.com/backslashxx/KernelSU/issues/5
 Subject: [PATCH] fs: implement KernelSU
 
 ---
