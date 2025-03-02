@@ -1,6 +1,6 @@
-From a658fe2af5f34d09010e80f49a616be43fbec9a2 Mon Sep 17 00:00:00 2001
+From 82207ab30f0c501118fe6456796d574e938274f0 Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Tue, 25 Feb 2025 14:46:31 +0300
+Date: Tue, 25 Feb 2025 14:42:07 +0300 https://github.com/backslashxx/KernelSU/issues/5
 Subject: [PATCH] fs: implement KernelSU
 
 ---
@@ -13,7 +13,7 @@ Subject: [PATCH] fs: implement KernelSU
  6 files changed, 64 insertions(+)
 
 diff --git a/drivers/input/input.c b/drivers/input/input.c
-index 55d84eaf92e7..15cfcb4bf6ac 100644
+index 83816d8a8479..ef753f9eaa45 100644
 --- a/drivers/input/input.c
 +++ b/drivers/input/input.c
 @@ -526,11 +526,21 @@ static void input_handle_event(struct input_dev *dev,
@@ -62,10 +62,10 @@ index 467f401abd29..c5eb3b7ded79 100644
  	tty = devpts_get_priv(file->f_path.dentry);
  	mutex_unlock(&devpts_mutex);
 diff --git a/fs/exec.c b/fs/exec.c
-index 8f0dc75d57a7..bda184501291 100644
+index ae0a49517ba9..bf81539929d4 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1878,12 +1878,26 @@ static int do_execveat_common(int fd, struct filename *filename,
+@@ -1871,12 +1871,26 @@ static int do_execveat_common(int fd, struct filename *filename,
  	return retval;
  }
  
@@ -92,7 +92,7 @@ index 8f0dc75d57a7..bda184501291 100644
  	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
  }
  
-@@ -1911,6 +1925,10 @@ static int compat_do_execve(struct filename *filename,
+@@ -1904,6 +1918,10 @@ static int compat_do_execve(struct filename *filename,
  		.is_compat = true,
  		.ptr.compat = __envp,
  	};
@@ -104,7 +104,7 @@ index 8f0dc75d57a7..bda184501291 100644
  }
  
 diff --git a/fs/open.c b/fs/open.c
-index 44133e71b512..990d233d0dee 100644
+index f2b9a4f18ae8..09a2e277c427 100644
 --- a/fs/open.c
 +++ b/fs/open.c
 @@ -354,6 +354,11 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
@@ -193,3 +193,4 @@ index 0fda4b6b8fb2..85c5a6c6f012 100644
  	error = vfs_fstatat(dfd, filename, &stat, flag);
  	if (error)
  		return error;
+
