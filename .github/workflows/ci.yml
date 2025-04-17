@@ -26,9 +26,3 @@ jobs:
     needs: check
     uses: ./.github/workflows/simon.yml
     secrets: inherit
-
-  run_wodan:
-    permissions: write-all
-    needs: check
-    uses: ./.github/workflows/wodan.yml
-    secrets: inherit
