@@ -1,6 +1,6 @@
-From 4b2b9835d8f4e30c3b91efe3d77df304e6da00b4 Mon Sep 17 00:00:00 2001
+From fdfd8295c1a41df5f19ab8146ab751ea1fb77c90 Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Tue, 25 Feb 2025 14:49:04 +0300
+Date: Thu, 17 Apr 2025 23:19:19 +0300
 Subject: [PATCH] Kernel: Patched for SUSFS
 
 ---
@@ -342,7 +342,7 @@ index a5bc1e8d4641..d384e412a5d7 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 5fcd130966cd..301a3d2ecedf 100644
+index e2ed3dcd59eb..d5d77fe2d7cc 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,39 @@
@@ -621,7 +621,7 @@ index 5fcd130966cd..301a3d2ecedf 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -2362,6 +2553,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2409,6 +2600,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -649,7 +649,7 @@ index 5fcd130966cd..301a3d2ecedf 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2961,6 +3173,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -3008,6 +3220,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -665,7 +665,7 @@ index 5fcd130966cd..301a3d2ecedf 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3038,6 +3259,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3085,6 +3306,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -676,7 +676,7 @@ index 5fcd130966cd..301a3d2ecedf 100644
  
  	BUG_ON(!ns);
  
-@@ -3057,6 +3282,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3104,6 +3329,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -691,7 +691,7 @@ index 5fcd130966cd..301a3d2ecedf 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3093,6 +3326,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3140,6 +3373,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -721,7 +721,7 @@ index 5fcd130966cd..301a3d2ecedf 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3633,3 +3889,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3680,3 +3936,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -1028,7 +1028,7 @@ index 96fc70225e54..f5cc2d5984d7 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index a8d91b6c82b9..80dc93436170 100644
+index fd5fe3992819..0b3c36dc05b0 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -19,6 +19,9 @@
@@ -1041,7 +1041,7 @@ index a8d91b6c82b9..80dc93436170 100644
  
  #include <asm/elf.h>
  #include <asm/tlb.h>
-@@ -347,6 +350,10 @@ static void show_vma_header_prefix(struct seq_file *m,
+@@ -364,6 +367,10 @@ static void show_vma_header_prefix_fake(struct seq_file *m,
  		   MAJOR(dev), MINOR(dev), ino);
  }
  
@@ -1052,7 +1052,7 @@ index a8d91b6c82b9..80dc93436170 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  {
-@@ -361,8 +368,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+@@ -378,8 +385,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
@@ -1068,8 +1068,8 @@ index a8d91b6c82b9..80dc93436170 100644
 +bypass_orig_flow:
 +#endif
  		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
- 	}
- 
+         struct dentry *dentry = file->f_path.dentry;
+         if (dentry) {
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
 index b859aaeecb27..d9ca462a8974 100644
 --- a/fs/proc_namespace.c
@@ -1185,7 +1185,7 @@ index e6f4c7b8884b..a2bf0ec64cc8 100644
  	if (sizeof(d_ino) < sizeof(ino) && d_ino != ino) {
  		buf->error = -EOVERFLOW;
 diff --git a/fs/stat.c b/fs/stat.c
-index 85c5a6c6f012..a37307f1fb28 100644
+index e3845fe2d4c8..fc63281a507d 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
@@ -1385,4 +1385,3 @@ index e24d8009b8db..d54fbfa98d97 100644
  	up_read(&uts_sem);
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
-
