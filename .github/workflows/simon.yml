@@ -36,35 +36,22 @@ jobs:
           echo "Latest upstream commit: $new_commit"
 
           if git rev-parse --verify simon >/dev/null 2>&1; then
-              echo "Local simon branch exists."
               git checkout simon
+              current_simon_commit=$(git rev-parse HEAD)
           else
-              echo "Local simon branch does not exist. Creating it."
               git checkout -b simon upstream/kernel-4.14
+              current_simon_commit=""
           fi
-          
-          if [ -f update.md ]; then
-              recorded_commit=$(grep -m1 "^Commit:" update.md | awk '{print $2}')
-              echo "Recorded commit in update.md: $recorded_commit"
-          else
-              echo "update.md does not exist. It will be created."
-              recorded_commit=""
-          fi
-          
-          if [ "$recorded_commit" = "$new_commit" ]; then
-              echo "No new update. Exiting."
-              exit 0
-          else
-              echo "New update detected. Updating branch."
+
+          if [ "$current_simon_commit" != "$new_commit" ]; then
+              echo "Updating simon branch..."
               git reset --hard upstream/kernel-4.14
-              
-              current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-              echo "Commit: $new_commit" > update.md
-              echo "Checked at: $current_time" >> update.md
-              
-              git add update.md
-              git commit -m "Update simon: new commit $new_commit at $current_time"
+              git rm --cached .github/workflows/*.yml 2>/dev/null || true
+              git add -A
+              git commit -m "Sync simon with upstream" || echo "No changes"
               git push origin simon --force
+          else
+              echo "Simon branch is already up to date."
           fi
 
       - name: Clear older runs
