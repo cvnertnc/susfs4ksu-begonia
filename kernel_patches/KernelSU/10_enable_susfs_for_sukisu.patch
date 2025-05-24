@@ -7,6 +7,8 @@ Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
 Co-Authored-By: YC酱luyancib <luyancib@qq.com>
+Co-Authored-By: cvnertnc <the.civanertunc@gmail.com>
+
 ---
  kernel/Kconfig           | 144 +++++++++++
  kernel/Makefile          |  77 ++++++
@@ -30,12 +32,12 @@ Co-Authored-By: YC酱luyancib <luyancib@qq.com>
  19 files changed, 958 insertions(+), 61 deletions(-)
 
 diff --git a/kernel/Kconfig b/kernel/Kconfig
-index 3cdf3242..b70b8d2d 100644
+index 558523da..0d16ae91 100644
 --- a/kernel/Kconfig
 +++ b/kernel/Kconfig
-@@ -55,4 +55,148 @@ config KPM
- 	  This option is suitable for scenarios where you need to force KPM to be enabled.
- 	  but it may affect system stability.
+@@ -57,4 +57,148 @@ config KSU_LSM_SECURITY_HOOKS
+ 	  Disabling this is mostly only useful for kernel 4.1 and older.
+ 	  Make sure to implement manual hooks on security/security.c.
  
 +menu "KernelSU - SUSFS"
 +config KSU_SUSFS
@@ -183,10 +185,10 @@ index 3cdf3242..b70b8d2d 100644
 +
  endmenu
 diff --git a/kernel/Makefile b/kernel/Makefile
-index 99df779d..23a3a711 100644
+index 634f37c0..09bdc0db 100644
 --- a/kernel/Makefile
 +++ b/kernel/Makefile
-@@ -133,4 +133,81 @@ ccflags-y += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
+@@ -130,4 +130,81 @@ ccflags-y += -DEXPECTED_HASH=\"$(KSU_EXPECTED_HASH)\"
  ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat
  ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
  
@@ -299,7 +301,7 @@ index f13c5f08..0c29e803 100644
  {
  	u32 magic = FILE_MAGIC;
  	u32 version = FILE_FORMAT_VERSION;
-@@ -400,7 +400,7 @@ exit:
+@@ -400,7 +400,7 @@ void do_save_allow_list(struct work_struct *work)
  	filp_close(fp, 0);
  }
  
@@ -344,10 +346,10 @@ index bed501c4..e02aa514 100644
  
  #endif
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index 7a345ca1..8eec54d3 100644
+index 748bd952..07da3120 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
-@@ -32,6 +32,10 @@
+@@ -37,6 +37,10 @@
  #include <linux/vmalloc.h>
  #endif
  
@@ -358,7 +360,7 @@ index 7a345ca1..8eec54d3 100644
  #include "allowlist.h"
  #include "arch.h"
  #include "core_hook.h"
-@@ -46,17 +50,87 @@
+@@ -51,17 +55,87 @@
  
  #include "kpm/kpm.h"
  
@@ -449,7 +451,7 @@ index 7a345ca1..8eec54d3 100644
  		// we are manager, allow!
  		return true;
  	}
-@@ -133,7 +207,7 @@ static void disable_seccomp(void)
+@@ -138,7 +212,7 @@ static void disable_seccomp(void)
  #endif
  }
  
@@ -458,7 +460,7 @@ index 7a345ca1..8eec54d3 100644
  {
  	struct cred *cred;
  
-@@ -188,7 +262,7 @@ void escape_to_root(void)
+@@ -193,7 +267,7 @@ void escape_to_root(void)
  	disable_seccomp();
  	spin_unlock_irq(&current->sighand->siglock);
  
@@ -467,7 +469,7 @@ index 7a345ca1..8eec54d3 100644
  }
  
  int ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
-@@ -225,7 +299,7 @@ int ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
+@@ -230,7 +304,7 @@ int ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
  	pr_info("renameat: %s -> %s, new path: %s\n", old_dentry->d_iname,
  		new_dentry->d_iname, buf);
  
@@ -476,7 +478,7 @@ index 7a345ca1..8eec54d3 100644
  
  	return 0;
  }
-@@ -270,7 +344,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -279,7 +353,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  	}
  
  	bool from_root = 0 == current_uid().val;
@@ -485,7 +487,7 @@ index 7a345ca1..8eec54d3 100644
  
  	if (!from_root && !from_manager) {
  		// only root or manager can access this interface
-@@ -294,7 +368,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -303,7 +377,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  	if (arg2 == CMD_GRANT_ROOT) {
  		if (is_allow_su()) {
  			pr_info("allow root for: %d\n", current_uid().val);
@@ -494,7 +496,7 @@ index 7a345ca1..8eec54d3 100644
  			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
  				pr_err("grant_root: prctl reply error\n");
  			}
-@@ -326,10 +400,13 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -335,10 +409,13 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  		switch (arg3) {
  		case EVENT_POST_FS_DATA: {
  			static bool post_fs_data_lock = false;
@@ -509,7 +511,7 @@ index 7a345ca1..8eec54d3 100644
  			}
  			break;
  		}
-@@ -357,7 +434,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -366,7 +443,7 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  		if (!from_root) {
  			return 0;
  		}
@@ -518,9 +520,9 @@ index 7a345ca1..8eec54d3 100644
  			if (copy_to_user(result, &reply_ok, sizeof(reply_ok))) {
  				pr_err("sepolicy: prctl reply error\n");
  			}
-@@ -431,6 +508,338 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -446,6 +523,338 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+     	return 0;
  	}
- 	#endif
  
 +#ifdef CONFIG_KSU_SUSFS
 +	if (current_uid_val == 0) {
@@ -857,7 +859,7 @@ index 7a345ca1..8eec54d3 100644
  	// all other cmds are for 'root manager'
  	if (!from_manager) {
  		return 0;
-@@ -494,6 +903,12 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
+@@ -509,6 +918,12 @@ int ksu_handle_prctl(int option, unsigned long arg2, unsigned long arg3,
  			return 0;
  		}
  		if (enabled) {
@@ -870,7 +872,7 @@ index 7a345ca1..8eec54d3 100644
  			ksu_sucompat_init();
  		} else {
  			ksu_sucompat_exit();
-@@ -529,11 +944,15 @@ static bool should_umount(struct path *path)
+@@ -544,11 +959,15 @@ static bool should_umount(struct path *path)
  		return false;
  	}
  
@@ -885,10 +887,10 @@ index 7a345ca1..8eec54d3 100644
 +#endif
  }
  
- static void ksu_umount_mnt(struct path *path, int flags)
-@@ -548,7 +967,11 @@ static void ksu_umount_mnt(struct path *path, int flags)
- 	}
+ #ifdef KSU_HAS_PATH_UMOUNT
+@@ -576,7 +995,11 @@ static void ksu_sys_umount(const char *mnt, int flags)
  }
+ #endif
  
 -static void try_umount(const char *mnt, bool check_mnt, int flags)
 +#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
@@ -899,7 +901,7 @@ index 7a345ca1..8eec54d3 100644
  {
  	struct path path;
  	int err = kern_path(mnt, 0, &path);
-@@ -566,9 +989,32 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
+@@ -594,6 +1017,12 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
  		return;
  	}
  
@@ -909,7 +911,11 @@ index 7a345ca1..8eec54d3 100644
 +	}
 +#endif
 +
+ #ifdef KSU_HAS_PATH_UMOUNT
  	ksu_umount_mnt(&path, flags);
+ #else
+@@ -601,6 +1030,23 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
+ #endif
  }
  
 +#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
@@ -932,7 +938,7 @@ index 7a345ca1..8eec54d3 100644
  int ksu_handle_setuid(struct cred *new, const struct cred *old)
  {
  	// this hook is used for umounting overlayfs for some uid, if there isn't any module mounted, just ignore it!
-@@ -588,6 +1034,20 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -620,6 +1066,20 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  		return 0;
  	}
  
@@ -953,7 +959,7 @@ index 7a345ca1..8eec54d3 100644
  	if (!is_appuid(new_uid) || is_unsupported_uid(new_uid.val)) {
  		// pr_info("handle setuid ignore non application or isolated uid: %d\n", new_uid.val);
  		return 0;
-@@ -597,7 +1057,17 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -629,7 +1089,17 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  		// pr_info("handle setuid ignore allowed application: %d\n", new_uid.val);
  		return 0;
  	}
@@ -971,7 +977,7 @@ index 7a345ca1..8eec54d3 100644
  	if (!ksu_uid_should_umount(new_uid.val)) {
  		return 0;
  	} else {
-@@ -606,10 +1076,12 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -638,10 +1108,12 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  #endif
  	}
  
@@ -985,7 +991,7 @@ index 7a345ca1..8eec54d3 100644
  	if (!is_zygote_child) {
  		pr_info("handle umount ignore non zygote child: %d\n",
  			current->pid);
-@@ -621,19 +1093,24 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -653,19 +1125,24 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  		current->pid);
  #endif
  
@@ -1459,7 +1465,7 @@ index 07120c25..d0dfdf9c 100644
  u32 ksu_get_devpts_sid();
  
 diff --git a/kernel/sucompat.c b/kernel/sucompat.c
-index bf0c34d3..f1f8241b 100644
+index 854e1576..db0e89f4 100644
 --- a/kernel/sucompat.c
 +++ b/kernel/sucompat.c
 @@ -14,6 +14,10 @@
@@ -1523,7 +1529,7 @@ index bf0c34d3..f1f8241b 100644
  
  	return 0;
  }
-@@ -173,7 +202,7 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
+@@ -190,7 +219,7 @@ int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user,
  	pr_info("sys_execve su found\n");
  	*filename_user = ksud_user_path();
  
@@ -1532,7 +1538,7 @@ index bf0c34d3..f1f8241b 100644
  
  	return 0;
  }
-@@ -322,3 +351,41 @@ void ksu_sucompat_exit()
+@@ -339,3 +368,41 @@ void ksu_sucompat_exit()
  	pr_info("ksu_sucompat exit\n");
  #endif
  }
@@ -1575,7 +1581,7 @@ index bf0c34d3..f1f8241b 100644
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_SU
 +
 diff --git a/kernel/throne_tracker.c b/kernel/throne_tracker.c
-index b6538841..eeb86e1f 100644
+index 94f675c0..27ed44ce 100644
 --- a/kernel/throne_tracker.c
 +++ b/kernel/throne_tracker.c
 @@ -188,7 +188,7 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
@@ -1608,6 +1614,3 @@ index 17c500c6..c5e045b1 100644
 +void ksu_track_throne();
  
  #endif
--- 
-2.48.1
-
