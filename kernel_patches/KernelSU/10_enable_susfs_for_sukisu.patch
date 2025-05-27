@@ -906,7 +906,7 @@ index a2f93068..fb95ceba 100644
 +#endif
 +
  #ifdef KSU_HAS_PATH_UMOUNT
- 	ksu_umount_mnt(&path, flags);
+ 	ksu_path_umount(&path, flags);
  #else
 @@ -599,6 +1028,23 @@ static void try_umount(const char *mnt, bool check_mnt, int flags)
  #endif
