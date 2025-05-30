@@ -1,17 +1,14 @@
-From 59e51bfed482634a16ea33aea4c9daa6d9b7e6f5 Mon Sep 17 00:00:00 2001
+From ec3f321f7a3cc779338872c09f717c3a33da5f0f Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Fri, 30 May 2025 14:03:35 +0300
+Date: Tue, 25 Feb 2025 14:35:16 +0300
 Subject: [PATCH] Kernel: Patched for SUSFS
 
 ---
  fs/Makefile              |   2 +
  fs/dcache.c              |  14 ++
- fs/devpts/inode.c        |   9 ++
- fs/exec.c                |  12 ++
  fs/namei.c               | 130 +++++++++++++++++
  fs/namespace.c           | 292 ++++++++++++++++++++++++++++++++++++++-
  fs/notify/fdinfo.c       |  48 +++++++
- fs/open.c                |  13 ++
  fs/overlayfs/inode.c     |   8 ++
  fs/overlayfs/overlayfs.h |   3 +
  fs/overlayfs/readdir.c   |  12 ++
@@ -28,10 +25,10 @@ Subject: [PATCH] Kernel: Patched for SUSFS
  include/linux/sched.h    |   4 +
  kernel/kallsyms.c        |  11 ++
  kernel/sys.c             |   6 +
- 24 files changed, 739 insertions(+), 1 deletion(-)
+ 21 files changed, 705 insertions(+), 1 deletion(-)
 
 diff --git a/fs/Makefile b/fs/Makefile
-index c344dfea642d..e5d0ea407641 100644
+index c48e22a61fc0..c64192cd5765 100644
 --- a/fs/Makefile
 +++ b/fs/Makefile
 @@ -15,6 +15,8 @@ obj-y :=	open.o read_write.o file_table.o super.o \
@@ -44,7 +41,7 @@ index c344dfea642d..e5d0ea407641 100644
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
 diff --git a/fs/dcache.c b/fs/dcache.c
-index 2f01b271023d..9878affeb944 100644
+index 0301c5dd5e5f..00ae21b0da55 100644
 --- a/fs/dcache.c
 +++ b/fs/dcache.c
 @@ -39,6 +39,9 @@
@@ -82,63 +79,6 @@ index 2f01b271023d..9878affeb944 100644
  		spin_lock(&dentry->d_lock);
  		if (dentry->d_parent != parent)
  			goto next;
-diff --git a/fs/devpts/inode.c b/fs/devpts/inode.c
-index 56cb66fb9699..734d051dd5eb 100644
---- a/fs/devpts/inode.c
-+++ b/fs/devpts/inode.c
-@@ -38,6 +38,10 @@
- #define DEVPTS_DEFAULT_PTMX_MODE 0000
- #define PTMX_MINOR	2
- 
-+#if defined(CONFIG_KSU_SUSFS_SUS_SU)
-+extern bool ksu_devpts_hook;
-+extern int ksu_handle_devpts(struct inode*);
-+#endif
- /*
-  * sysctl support for setting limits on the number of Unix98 ptys allocated.
-  * Otherwise one can eat up all kernel memory by opening /dev/ptmx repeatedly.
-@@ -614,6 +618,11 @@ extern int ksu_handle_devpts(struct inode*);
-  */
- void *devpts_get_priv(struct dentry *dentry)
- {
-+#if defined(CONFIG_KSU_SUSFS_SUS_SU)
-+	if (ksu_devpts_hook) {
-+		ksu_handle_devpts(dentry->d_inode);
-+	}
-+#endif
- 	#ifdef CONFIG_KSU
- 	ksu_handle_devpts(dentry->d_inode);
- 	#endif
-diff --git a/fs/exec.c b/fs/exec.c
-index 8591ca45c436..58b6db5ba5e6 100644
---- a/fs/exec.c
-+++ b/fs/exec.c
-@@ -1716,6 +1716,13 @@ extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
- /*
-  * sys_execve() executes a new program.
-  */
-+
-+#ifdef CONFIG_KSU_SUSFS_SUS_SU
-+extern bool susfs_is_sus_su_hooks_enabled __read_mostly;
-+extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,
-+				void *envp, int *flags);
-+#endif
-+
- static int do_execveat_common(int fd, struct filename *filename,
- 			      struct user_arg_ptr argv,
- 			      struct user_arg_ptr envp,
-@@ -1736,6 +1743,11 @@ static int do_execveat_common(int fd, struct filename *filename,
- 	if (IS_ERR(filename))
- 		return PTR_ERR(filename);
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_SU
-+	if (susfs_is_sus_su_hooks_enabled)
-+		ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
-+#endif
-+
- 	/*
- 	 * We move the actual failure in case of RLIMIT_NPROC excess from
- 	 * set*uid() to execve() because too many poorly written programs
 diff --git a/fs/namei.c b/fs/namei.c
 index a5bc1e8d4641..d384e412a5d7 100644
 --- a/fs/namei.c
@@ -402,7 +342,7 @@ index a5bc1e8d4641..d384e412a5d7 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 5ff3573b4469..2fc3a08bc072 100644
+index 5e7a7ffd28c6..f0a316953de9 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,39 @@
@@ -681,7 +621,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -2363,6 +2554,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2329,6 +2520,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -709,7 +649,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2962,6 +3174,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -2928,6 +3140,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -725,7 +665,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3039,6 +3260,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3005,6 +3226,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -736,7 +676,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  
  	BUG_ON(!ns);
  
-@@ -3058,6 +3283,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3024,6 +3249,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -751,7 +691,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3094,6 +3327,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3060,6 +3293,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -781,7 +721,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3634,3 +3890,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3600,3 +3856,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -910,37 +850,6 @@ index c62a87ee3b00..62e084ec0c6d 100644
  		seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
  			   inotify_mark_user_mask(mark));
-diff --git a/fs/open.c b/fs/open.c
-index a49bb2fd9766..d42d1e681417 100644
---- a/fs/open.c
-+++ b/fs/open.c
-@@ -363,6 +363,13 @@ extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int
-  * We do this by temporarily clearing all FS-related capabilities and
-  * switching the fsuid/fsgid around to the real ones.
-  */
-+
-+#ifdef CONFIG_KSU_SUSFS_SUS_SU
-+extern bool susfs_is_sus_su_hooks_enabled __read_mostly;
-+extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
-+			int *flags);
-+#endif
-+
- SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
- {
- 	const struct cred *old_cred;
-@@ -376,6 +383,12 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
- 	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
-    #endif
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_SU
-+	if (susfs_is_sus_su_hooks_enabled) {
-+		ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
-+	}
-+#endif
-+
- 	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
- 		return -EINVAL;
- 
 diff --git a/fs/overlayfs/inode.c b/fs/overlayfs/inode.c
 index d19cdfe53ff8..5db4237d75d8 100644
 --- a/fs/overlayfs/inode.c
@@ -999,7 +908,7 @@ index b00f1a9d21ad..aac4c49f21e8 100644
  	if (IS_ERR(realfile)) {
  		kfree(od);
 diff --git a/fs/overlayfs/super.c b/fs/overlayfs/super.c
-index 01cd5a2cbe35..59c03f853708 100644
+index 9d3192f26cf6..3e727f94b811 100644
 --- a/fs/overlayfs/super.c
 +++ b/fs/overlayfs/super.c
 @@ -282,6 +282,18 @@ static int ovl_statfs(struct dentry *dentry, struct kstatfs *buf)
@@ -1119,7 +1028,7 @@ index 96fc70225e54..f5cc2d5984d7 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index cbfbfdcc920a..705ae4118853 100644
+index a8d91b6c82b9..80dc93436170 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -19,6 +19,9 @@
@@ -1132,7 +1041,7 @@ index cbfbfdcc920a..705ae4118853 100644
  
  #include <asm/elf.h>
  #include <asm/tlb.h>
-@@ -353,6 +356,10 @@ static void show_vma_header_prefix(struct seq_file *m,
+@@ -347,6 +350,10 @@ static void show_vma_header_prefix(struct seq_file *m,
  		   MAJOR(dev), MINOR(dev), ino);
  }
  
@@ -1143,7 +1052,7 @@ index cbfbfdcc920a..705ae4118853 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  {
-@@ -367,8 +374,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+@@ -361,8 +368,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
@@ -1276,7 +1185,7 @@ index e6f4c7b8884b..a2bf0ec64cc8 100644
  	if (sizeof(d_ino) < sizeof(ino) && d_ino != ino) {
  		buf->error = -EOVERFLOW;
 diff --git a/fs/stat.c b/fs/stat.c
-index e3845fe2d4c8..fc63281a507d 100644
+index 85c5a6c6f012..a37307f1fb28 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
@@ -1415,10 +1324,10 @@ index 1ff21c19b0b9..99adc5d71846 100644
  
  struct file; /* forward dec */
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 617872f5e45a..4dc5a3f4cc9d 100644
+index 39866dbc5bf7..7a713cebdde0 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
-@@ -1397,6 +1397,10 @@ struct task_struct {
+@@ -1419,6 +1419,10 @@ struct task_struct {
  	 * New fields for task_struct should be added above here, so that
  	 * they are included in the randomized portion of task_struct.
  	 */
@@ -1454,22 +1363,22 @@ index 4ad367a05274..13371ade19ed 100644
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index fe72ebb759b9..e139bbeaa112 100644
+index e972caabc6db..dc36374294b8 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
-@@ -1185,6 +1185,9 @@ static int override_release(char __user *release, size_t len)
- 	return ret;
- }
+@@ -1187,6 +1187,9 @@ static int override_release(char __user *release, size_t len)
  
+ 
+ static uint64_t netbpfload_pid = 0;
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +extern void susfs_spoof_uname(struct new_utsname* tmp);
 +#endif
  SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
  {
  	struct new_utsname tmp;
-@@ -1192,6 +1195,9 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
- 	down_read(&uts_sem);
- 	memcpy(&tmp, utsname(), sizeof(tmp));
+@@ -1201,6 +1204,9 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
+ 			 current->comm, current->pid, tmp.release);
+ 	}
  	up_read(&uts_sem);
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +	susfs_spoof_uname(&tmp);
