@@ -1,6 +1,6 @@
-From 59e51bfed482634a16ea33aea4c9daa6d9b7e6f5 Mon Sep 17 00:00:00 2001
+From a35ac9dd2b9277e586299b0f222dfc628656e38a Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Fri, 30 May 2025 14:03:35 +0300
+Date: Fri, 30 May 2025 12:01:58 +0300
 Subject: [PATCH] Kernel: Patched for SUSFS
 
 ---
@@ -83,7 +83,7 @@ index 2f01b271023d..9878affeb944 100644
  		if (dentry->d_parent != parent)
  			goto next;
 diff --git a/fs/devpts/inode.c b/fs/devpts/inode.c
-index 56cb66fb9699..734d051dd5eb 100644
+index 32f6f1c683d9..59bce0ec76c0 100644
 --- a/fs/devpts/inode.c
 +++ b/fs/devpts/inode.c
 @@ -38,6 +38,10 @@
@@ -97,7 +97,7 @@ index 56cb66fb9699..734d051dd5eb 100644
  /*
   * sysctl support for setting limits on the number of Unix98 ptys allocated.
   * Otherwise one can eat up all kernel memory by opening /dev/ptmx repeatedly.
-@@ -614,6 +618,11 @@ extern int ksu_handle_devpts(struct inode*);
+@@ -610,6 +614,11 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
   */
  void *devpts_get_priv(struct dentry *dentry)
  {
@@ -106,14 +106,14 @@ index 56cb66fb9699..734d051dd5eb 100644
 +		ksu_handle_devpts(dentry->d_inode);
 +	}
 +#endif
- 	#ifdef CONFIG_KSU
- 	ksu_handle_devpts(dentry->d_inode);
- 	#endif
+ 	if (dentry->d_sb->s_magic != DEVPTS_SUPER_MAGIC)
+ 		return NULL;
+ 	return dentry->d_fsdata;
 diff --git a/fs/exec.c b/fs/exec.c
-index 8591ca45c436..58b6db5ba5e6 100644
+index ae0a49517ba9..12fc59cc4d17 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1716,6 +1716,13 @@ extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+@@ -1709,6 +1709,13 @@ static int exec_binprm(struct linux_binprm *bprm)
  /*
   * sys_execve() executes a new program.
   */
@@ -127,7 +127,7 @@ index 8591ca45c436..58b6db5ba5e6 100644
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
-@@ -1736,6 +1743,11 @@ static int do_execveat_common(int fd, struct filename *filename,
+@@ -1723,6 +1730,11 @@ static int do_execveat_common(int fd, struct filename *filename,
  	if (IS_ERR(filename))
  		return PTR_ERR(filename);
  
@@ -402,7 +402,7 @@ index a5bc1e8d4641..d384e412a5d7 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 5ff3573b4469..2fc3a08bc072 100644
+index 30772b12aa79..b1d3a85ec0a4 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,39 @@
@@ -681,7 +681,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -2363,6 +2554,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2329,6 +2520,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -709,7 +709,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -2962,6 +3174,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -2928,6 +3140,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -725,7 +725,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3039,6 +3260,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3005,6 +3226,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -736,7 +736,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  
  	BUG_ON(!ns);
  
-@@ -3058,6 +3283,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3024,6 +3249,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -751,7 +751,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3094,6 +3327,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3060,6 +3293,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -781,7 +781,7 @@ index 5ff3573b4469..2fc3a08bc072 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3634,3 +3890,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3600,3 +3856,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -911,10 +911,10 @@ index c62a87ee3b00..62e084ec0c6d 100644
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
  			   inotify_mark_user_mask(mark));
 diff --git a/fs/open.c b/fs/open.c
-index a49bb2fd9766..d42d1e681417 100644
+index f2b9a4f18ae8..9d76dacacb25 100644
 --- a/fs/open.c
 +++ b/fs/open.c
-@@ -363,6 +363,13 @@ extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int
+@@ -359,6 +359,13 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
   * We do this by temporarily clearing all FS-related capabilities and
   * switching the fsuid/fsgid around to the real ones.
   */
@@ -928,9 +928,9 @@ index a49bb2fd9766..d42d1e681417 100644
  SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
  {
  	const struct cred *old_cred;
-@@ -376,6 +383,12 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
- 	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
-    #endif
+@@ -369,6 +376,12 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ 	int res;
+ 	unsigned int lookup_flags = LOOKUP_FOLLOW;
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_SU
 +	if (susfs_is_sus_su_hooks_enabled) {
@@ -1276,7 +1276,7 @@ index e6f4c7b8884b..a2bf0ec64cc8 100644
  	if (sizeof(d_ino) < sizeof(ino) && d_ino != ino) {
  		buf->error = -EOVERFLOW;
 diff --git a/fs/stat.c b/fs/stat.c
-index e3845fe2d4c8..fc63281a507d 100644
+index 0fda4b6b8fb2..8ed3f4feb8fb 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
@@ -1477,4 +1477,3 @@ index fe72ebb759b9..e139bbeaa112 100644
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
  
-
