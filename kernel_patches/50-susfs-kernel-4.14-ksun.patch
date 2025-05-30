@@ -1477,4 +1477,3 @@ index e972caabc6db..dc36374294b8 100644
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
  
-
