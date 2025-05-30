@@ -1,14 +1,17 @@
-From ec3f321f7a3cc779338872c09f717c3a33da5f0f Mon Sep 17 00:00:00 2001
+From bfcb06c6d303e8f67aa7a011854f7929c8cc540f Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Tue, 25 Feb 2025 14:35:16 +0300
+Date: Fri, 30 May 2025 11:48:52 +0300
 Subject: [PATCH] Kernel: Patched for SUSFS
 
 ---
  fs/Makefile              |   2 +
  fs/dcache.c              |  14 ++
+ fs/devpts/inode.c        |   9 ++
+ fs/exec.c                |  12 ++
  fs/namei.c               | 130 +++++++++++++++++
  fs/namespace.c           | 292 ++++++++++++++++++++++++++++++++++++++-
  fs/notify/fdinfo.c       |  48 +++++++
+ fs/open.c                |  13 ++
  fs/overlayfs/inode.c     |   8 ++
  fs/overlayfs/overlayfs.h |   3 +
  fs/overlayfs/readdir.c   |  12 ++
@@ -25,7 +28,7 @@ Subject: [PATCH] Kernel: Patched for SUSFS
  include/linux/sched.h    |   4 +
  kernel/kallsyms.c        |  11 ++
  kernel/sys.c             |   6 +
- 21 files changed, 705 insertions(+), 1 deletion(-)
+ 24 files changed, 739 insertions(+), 1 deletion(-)
 
 diff --git a/fs/Makefile b/fs/Makefile
 index c48e22a61fc0..c64192cd5765 100644
@@ -79,6 +82,63 @@ index 0301c5dd5e5f..00ae21b0da55 100644
  		spin_lock(&dentry->d_lock);
  		if (dentry->d_parent != parent)
  			goto next;
+diff --git a/fs/devpts/inode.c b/fs/devpts/inode.c
+index 32f6f1c683d9..59bce0ec76c0 100644
+--- a/fs/devpts/inode.c
++++ b/fs/devpts/inode.c
+@@ -38,6 +38,10 @@
+ #define DEVPTS_DEFAULT_PTMX_MODE 0000
+ #define PTMX_MINOR	2
+ 
++#if defined(CONFIG_KSU_SUSFS_SUS_SU)
++extern bool ksu_devpts_hook;
++extern int ksu_handle_devpts(struct inode*);
++#endif
+ /*
+  * sysctl support for setting limits on the number of Unix98 ptys allocated.
+  * Otherwise one can eat up all kernel memory by opening /dev/ptmx repeatedly.
+@@ -610,6 +614,11 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
+  */
+ void *devpts_get_priv(struct dentry *dentry)
+ {
++#if defined(CONFIG_KSU_SUSFS_SUS_SU)
++	if (ksu_devpts_hook) {
++		ksu_handle_devpts(dentry->d_inode);
++	}
++#endif
+ 	if (dentry->d_sb->s_magic != DEVPTS_SUPER_MAGIC)
+ 		return NULL;
+ 	return dentry->d_fsdata;
+diff --git a/fs/exec.c b/fs/exec.c
+index ae0a49517ba9..12fc59cc4d17 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1709,6 +1709,13 @@ static int exec_binprm(struct linux_binprm *bprm)
+ /*
+  * sys_execve() executes a new program.
+  */
++
++#ifdef CONFIG_KSU_SUSFS_SUS_SU
++extern bool susfs_is_sus_su_hooks_enabled __read_mostly;
++extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,
++				void *envp, int *flags);
++#endif
++
+ static int do_execveat_common(int fd, struct filename *filename,
+ 			      struct user_arg_ptr argv,
+ 			      struct user_arg_ptr envp,
+@@ -1723,6 +1730,11 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	if (IS_ERR(filename))
+ 		return PTR_ERR(filename);
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_SU
++	if (susfs_is_sus_su_hooks_enabled)
++		ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
++#endif
++
+ 	/*
+ 	 * We move the actual failure in case of RLIMIT_NPROC excess from
+ 	 * set*uid() to execve() because too many poorly written programs
 diff --git a/fs/namei.c b/fs/namei.c
 index a5bc1e8d4641..d384e412a5d7 100644
 --- a/fs/namei.c
@@ -850,6 +910,37 @@ index c62a87ee3b00..62e084ec0c6d 100644
  		seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
  			   inotify_mark_user_mask(mark));
+diff --git a/fs/open.c b/fs/open.c
+index f2b9a4f18ae8..9d76dacacb25 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -359,6 +359,13 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+  * We do this by temporarily clearing all FS-related capabilities and
+  * switching the fsuid/fsgid around to the real ones.
+  */
++
++#ifdef CONFIG_KSU_SUSFS_SUS_SU
++extern bool susfs_is_sus_su_hooks_enabled __read_mostly;
++extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
++			int *flags);
++#endif
++
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
+ 	const struct cred *old_cred;
+@@ -369,6 +376,12 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ 	int res;
+ 	unsigned int lookup_flags = LOOKUP_FOLLOW;
+ 
++#ifdef CONFIG_KSU_SUSFS_SUS_SU
++	if (susfs_is_sus_su_hooks_enabled) {
++		ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++	}
++#endif
++
+ 	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
+ 		return -EINVAL;
+ 
 diff --git a/fs/overlayfs/inode.c b/fs/overlayfs/inode.c
 index d19cdfe53ff8..5db4237d75d8 100644
 --- a/fs/overlayfs/inode.c
@@ -1185,7 +1276,7 @@ index e6f4c7b8884b..a2bf0ec64cc8 100644
  	if (sizeof(d_ino) < sizeof(ino) && d_ino != ino) {
  		buf->error = -EOVERFLOW;
 diff --git a/fs/stat.c b/fs/stat.c
-index 85c5a6c6f012..a37307f1fb28 100644
+index 0fda4b6b8fb2..8ed3f4feb8fb 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
