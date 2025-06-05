@@ -1,12 +1,11 @@
-From a96d79e5ae8764887acab6f0574b007f5053de3d Mon Sep 17 00:00:00 2001
-From: rifsxd <rifat.44.azad.rifs@gmail.com>
-Date: Thu, 22 May 2025 13:11:40 +0600
-Subject: [PATCH] kernel: patch susfs v1.5.7 to KernelSU-Next (b13a12e)
+From 8eeef63f3b620ba75f24fe598b2e57bf0b605a80 Mon Sep 17 00:00:00 2001
+From: cvnertnc <the.civanertunc@gmail.com>
+Date: Thu, 5 Jun 2025 23:48:00 +0300
+Subject: [PATCH] kernel: patch susfs v1.5.7 to KernelSU-Next
 
 ---
- kernel/.gitignore        |   3 +
  kernel/Kconfig           | 144 +++++++++++
- kernel/Makefile          |  79 +++++-
+ kernel/Makefile          |  77 ++++++
  kernel/allowlist.c       |  10 +-
  kernel/apk_sign.c        |   2 +-
  kernel/apk_sign.h        |   2 +-
@@ -24,19 +23,8 @@ Subject: [PATCH] kernel: patch susfs v1.5.7 to KernelSU-Next (b13a12e)
  kernel/sucompat.c        |  72 +++++-
  kernel/throne_tracker.c  |   4 +-
  kernel/throne_tracker.h  |   2 +-
- 20 files changed, 985 insertions(+), 66 deletions(-)
- create mode 100644 kernel/.gitignore
+ 19 files changed, 981 insertions(+), 65 deletions(-)
 
-diff --git a/kernel/.gitignore b/kernel/.gitignore
-new file mode 100644
-index 000000000..008cf89d8
---- /dev/null
-+++ b/kernel/.gitignore
-@@ -0,0 +1,3 @@
-+*.patch
-+*.orig
-+*.rej
-\ No newline at end of file
 diff --git a/kernel/Kconfig b/kernel/Kconfig
 index ab6dd5c9d..f4ab963a4 100644
 --- a/kernel/Kconfig
@@ -191,18 +179,9 @@ index ab6dd5c9d..f4ab963a4 100644
 +
  endmenu
 diff --git a/kernel/Makefile b/kernel/Makefile
-index aa380e9ae..be32543a0 100644
+index aa380e9ae..8aa8d6e33 100644
 --- a/kernel/Makefile
 +++ b/kernel/Makefile
-@@ -21,7 +21,7 @@ ifeq ($(shell test -e $(srctree)/$(src)/../.git; echo $$?),0)
- $(shell cd $(srctree)/$(src); /usr/bin/env PATH="$$PATH":/usr/bin:/usr/local/bin [ -f ../.git/shallow ] && git fetch --unshallow)
- KSU_GIT_VERSION := $(shell cd $(srctree)/$(src); /usr/bin/env PATH="$$PATH":/usr/bin:/usr/local/bin git rev-list --count HEAD)
- # ksu_version: major * 10000 + git version + 200 for historical reasons
--$(eval KSU_VERSION=$(shell expr 10000 + $(KSU_GIT_VERSION) + 200))
-+$(eval KSU_VERSION=$(shell expr 10000 + $(KSU_GIT_VERSION) + 200))
- $(info -- KernelSU-Next version: $(KSU_VERSION))
- ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
- else # If there is no .git file, the default version will be passed.
 @@ -150,4 +150,81 @@ endif
  ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat
  ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
@@ -361,7 +340,7 @@ index bed501c49..e02aa5144 100644
  
  #endif
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index 7fd2d4559..c8efa1a83 100644
+index 2fbb42a19..f69e90d1f 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -35,6 +35,10 @@
@@ -1054,7 +1033,7 @@ index 7fd2d4559..c8efa1a83 100644
 -	try_umount("/sbin", false, MNT_DETACH);
 +	ksu_try_umount("/debug_ramdisk", false, MNT_DETACH);
 +	ksu_try_umount("/sbin", false, MNT_DETACH);
- 	
+ 
  	// try umount hosts file
 -	try_umount("/system/etc/hosts", false, MNT_DETACH);
 +	ksu_try_umount("/system/etc/hosts", false, MNT_DETACH);
@@ -1157,7 +1136,7 @@ index 118641412..a8a02c2f6 100644
  MODULE_LICENSE("GPL");
  MODULE_AUTHOR("weishu");
 diff --git a/kernel/ksud.c b/kernel/ksud.c
-index 74538aeb6..78b60b843 100644
+index 0bbc73ac9..f44e7680d 100644
 --- a/kernel/ksud.c
 +++ b/kernel/ksud.c
 @@ -64,6 +64,9 @@ bool ksu_vfs_read_hook __read_mostly = true;
@@ -1626,10 +1605,10 @@ index 11b2a551e..afd8f4e96 100644
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_SU
 +
 diff --git a/kernel/throne_tracker.c b/kernel/throne_tracker.c
-index f76f01b8d..84af711f4 100644
+index daec18378..6cbe3f033 100644
 --- a/kernel/throne_tracker.c
 +++ b/kernel/throne_tracker.c
-@@ -188,7 +188,7 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
+@@ -212,7 +212,7 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
  				}
  			}
  
@@ -1638,15 +1617,15 @@ index f76f01b8d..84af711f4 100644
  			pr_info("Found new base.apk at path: %s, is_manager: %d\n",
  				dirpath, is_manager);
  			if (is_manager) {
-@@ -284,7 +284,7 @@ static bool is_uid_exist(uid_t uid, char *package, void *data)
- 	return exist;
+@@ -428,7 +428,7 @@ static int throne_tracker_thread(void *data)
+ 	return 0;
  }
  
 -void track_throne()
 +void ksu_track_throne()
  {
- 	struct file *fp =
- 		ksu_filp_open_compat(SYSTEM_PACKAGES_LIST_PATH, O_RDONLY, 0);
+ 	throne_thread = kthread_run(throne_tracker_thread, NULL, "throne_tracker");
+ 	if (IS_ERR(throne_thread)) {
 diff --git a/kernel/throne_tracker.h b/kernel/throne_tracker.h
 index 5d7f47700..428c737dd 100644
 --- a/kernel/throne_tracker.h
