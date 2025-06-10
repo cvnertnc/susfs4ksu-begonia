@@ -1,6 +1,6 @@
-From 90a38bb53482d8f5672ad29e8d979eb06d9af808 Mon Sep 17 00:00:00 2001
+From 82207ab30f0c501118fe6456796d574e938274f0 Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Tue, 25 Feb 2025 14:33:50 +0300 https://github.com/backslashxx/KernelSU/issues/5
+Date: Tue, 25 Feb 2025 14:42:07 +0300 https://github.com/backslashxx/KernelSU/issues/5
 Subject: [PATCH] fs: implement KernelSU
 
 ---
@@ -193,3 +193,4 @@ index 0fda4b6b8fb2..85c5a6c6f012 100644
  	error = vfs_fstatat(dfd, filename, &stat, flag);
  	if (error)
  		return error;
+
