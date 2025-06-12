@@ -1,4 +1,4 @@
-name: Sync simon branch daily
+name: Sync neko branch daily
 
 on:
   workflow_call:
@@ -26,7 +26,7 @@ jobs:
 
       - name: Add GitLab remote and fetch kernel-4.14 branch
         run: |
-          git remote add upstream https://gitlab.com/simonpunk/susfs4ksu.git || true
+          git remote add upstream https://gitlab.com/shirkneko/susfs4ksu.git || true
           git fetch upstream kernel-4.14
 
       - name: Check for updates and sync branch
@@ -35,23 +35,23 @@ jobs:
           new_commit=$(git rev-parse upstream/kernel-4.14)
           echo "Latest upstream commit: $new_commit"
 
-          if git rev-parse --verify simon >/dev/null 2>&1; then
-              git checkout simon
+          if git rev-parse --verify neko >/dev/null 2>&1; then
+              git checkout neko
               current_simon_commit=$(git rev-parse HEAD)
           else
-              git checkout -b simon upstream/kernel-4.14
+              git checkout -b neko upstream/kernel-4.14
               current_simon_commit=""
           fi
 
           if [ "$current_simon_commit" != "$new_commit" ]; then
-              echo "Updating simon branch..."
+              echo "Updating neko branch..."
               git reset --hard upstream/kernel-4.14
               git rm --cached .github/workflows/*.yml 2>/dev/null || true
               git add -A
-              git commit -m "Sync simon with upstream" || echo "No changes"
-              git push origin simon --force
+              git commit -m "Sync neko with upstream" || echo "No changes"
+              git push origin neko --force
           else
-              echo "Simon branch is already up to date."
+              echo "Neko branch is already up to date."
           fi
 
       - name: Clear older runs
