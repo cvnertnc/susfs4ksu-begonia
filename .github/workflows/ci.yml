@@ -21,8 +21,8 @@ jobs:
         run: |
           gh run list -L400 --json databaseId -q '.[].databaseId' | tail -n+5 | xargs -IID gh api "repos/$GITHUB_REPOSITORY/actions/runs/ID" -X DELETE || :
 
-  run_simon:
+  run_shirkneko:
     permissions: write-all
     needs: check
-    uses: ./.github/workflows/simon.yml
+    uses: ./.github/workflows/neko.yml
     secrets: inherit
