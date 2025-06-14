@@ -1,7 +1,7 @@
 From 81f17f1f5c287a15169ee04a18bdd50e6fd4575d Mon Sep 17 00:00:00 2001
 From: sidex15 <24408329+sidex15@users.noreply.github.com>
 Date: Sun, 19 Jan 2025 18:40:49 +0800 https://kernelsu.org/guide/how-to-integrate-for-non-gki.html
-Subject: [PATCH] fs: implement KernelSU
+Subject: [PATCH] fs: implement kernelsu [astera, nova, power]
 
 ---
  drivers/input/input.c |  9 +++++++++
