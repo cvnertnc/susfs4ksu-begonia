@@ -1,7 +1,7 @@
 From caa66aa65403fd6195b52c5437fc80e2bcf866c4 Mon Sep 17 00:00:00 2001
 From: backslashxx <118538522+backslashxx@users.noreply.github.com>
 Date: Sat, 22 Feb 2025 22:53:48 +0800
-Subject: [PATCH] KernelSU: integrate scope-minimized manual hooks - k4.14 v1.4
+Subject: [PATCH] KernelSU: integrate scope-minimized manual hooks - k4.14 v1.4 [astera, nova, power]
 
 This refactors original KSU hooks to replace deep kernel function hooks with targeted hooks.
 This backports KernelSU pr#1657 and having pr#2084 elements (32-bit sucompat).

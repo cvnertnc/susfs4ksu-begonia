@@ -1,7 +1,7 @@
-From fdfd8295c1a41df5f19ab8146ab751ea1fb77c90 Mon Sep 17 00:00:00 2001
+From 6c565ebbc4d7b42ad5c38b6a7927862070f9a719 Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Thu, 17 Apr 2025 23:19:19 +0300
-Subject: [PATCH] Kernel: Patched for SUSFS
+Date: Sat, 14 Jun 2025 08:45:41 +0300
+Subject: [PATCH] kernel: patched for susfs [nova, power]
 
 ---
  fs/Makefile              |   2 +
@@ -28,7 +28,7 @@ Subject: [PATCH] Kernel: Patched for SUSFS
  21 files changed, 705 insertions(+), 1 deletion(-)
 
 diff --git a/fs/Makefile b/fs/Makefile
-index c344dfea642d..e5d0ea407641 100644
+index c48e22a61fc0..c64192cd5765 100644
 --- a/fs/Makefile
 +++ b/fs/Makefile
 @@ -15,6 +15,8 @@ obj-y :=	open.o read_write.o file_table.o super.o \
@@ -41,7 +41,7 @@ index c344dfea642d..e5d0ea407641 100644
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
 diff --git a/fs/dcache.c b/fs/dcache.c
-index 67e240988466..6ea0ec51d26d 100644
+index 0301c5dd5e5f..00ae21b0da55 100644
 --- a/fs/dcache.c
 +++ b/fs/dcache.c
 @@ -39,6 +39,9 @@
@@ -54,7 +54,7 @@ index 67e240988466..6ea0ec51d26d 100644
  
  #include "internal.h"
  #include "mount.h"
-@@ -2226,6 +2229,11 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
+@@ -2225,6 +2228,11 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
  				continue;
  			if (dentry_cmp(dentry, str, hashlen_len(hashlen)) != 0)
  				continue;
@@ -66,7 +66,7 @@ index 67e240988466..6ea0ec51d26d 100644
  		}
  		*seqp = seq;
  		return dentry;
-@@ -2309,6 +2317,12 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
+@@ -2308,6 +2316,12 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
  		if (dentry->d_name.hash != hash)
  			continue;
  
@@ -342,7 +342,7 @@ index a5bc1e8d4641..d384e412a5d7 100644
  	return filp;
  }
 diff --git a/fs/namespace.c b/fs/namespace.c
-index e2ed3dcd59eb..d5d77fe2d7cc 100644
+index c938f67dea42..2c2cb4d71a9f 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
 @@ -26,10 +26,39 @@
@@ -621,7 +621,7 @@ index e2ed3dcd59eb..d5d77fe2d7cc 100644
  	lock_mount_hash();
  	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
  	unlock_mount_hash();
-@@ -2409,6 +2600,27 @@ static int do_loopback(struct path *path, const char *old_name,
+@@ -2363,6 +2554,27 @@ static int do_loopback(struct path *path, const char *old_name,
  		umount_tree(mnt, UMOUNT_SYNC);
  		unlock_mount_hash();
  	}
@@ -649,7 +649,7 @@ index e2ed3dcd59eb..d5d77fe2d7cc 100644
  out2:
  	unlock_mount(mp);
  out:
-@@ -3008,6 +3220,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
+@@ -2962,6 +3174,15 @@ long do_mount(const char *dev_name, const char __user *dir_name,
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
@@ -665,7 +665,7 @@ index e2ed3dcd59eb..d5d77fe2d7cc 100644
  dput_out:
  	path_put(&path);
  	return retval;
-@@ -3085,6 +3306,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3039,6 +3260,10 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	struct mount *old;
  	struct mount *new;
  	int copy_flags;
@@ -676,7 +676,7 @@ index e2ed3dcd59eb..d5d77fe2d7cc 100644
  
  	BUG_ON(!ns);
  
-@@ -3104,6 +3329,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3058,6 +3283,14 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
  	if (user_ns != ns->user_ns)
  		copy_flags |= CL_SHARED_TO_SLAVE | CL_UNPRIVILEGED;
@@ -691,7 +691,7 @@ index e2ed3dcd59eb..d5d77fe2d7cc 100644
  	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
  	if (IS_ERR(new)) {
  		namespace_unlock();
-@@ -3140,6 +3373,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+@@ -3094,6 +3327,29 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
  		while (p->mnt.mnt_root != q->mnt.mnt_root)
  			p = next_mnt(p, old);
  	}
@@ -721,7 +721,7 @@ index e2ed3dcd59eb..d5d77fe2d7cc 100644
  	namespace_unlock();
  
  	if (rootmnt)
-@@ -3680,3 +3936,37 @@ const struct proc_ns_operations mntns_operations = {
+@@ -3634,3 +3890,37 @@ const struct proc_ns_operations mntns_operations = {
  	.install	= mntns_install,
  	.owner		= mntns_owner,
  };
@@ -908,7 +908,7 @@ index b00f1a9d21ad..aac4c49f21e8 100644
  	if (IS_ERR(realfile)) {
  		kfree(od);
 diff --git a/fs/overlayfs/super.c b/fs/overlayfs/super.c
-index 01cd5a2cbe35..59c03f853708 100644
+index 9d3192f26cf6..3e727f94b811 100644
 --- a/fs/overlayfs/super.c
 +++ b/fs/overlayfs/super.c
 @@ -282,6 +282,18 @@ static int ovl_statfs(struct dentry *dentry, struct kstatfs *buf)
@@ -1028,7 +1028,7 @@ index 96fc70225e54..f5cc2d5984d7 100644
  	show_fd_locks(m, file, files);
  	if (seq_has_overflowed(m))
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index fd5fe3992819..0b3c36dc05b0 100644
+index a8d91b6c82b9..80dc93436170 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -19,6 +19,9 @@
@@ -1041,7 +1041,7 @@ index fd5fe3992819..0b3c36dc05b0 100644
  
  #include <asm/elf.h>
  #include <asm/tlb.h>
-@@ -364,6 +367,10 @@ static void show_vma_header_prefix_fake(struct seq_file *m,
+@@ -347,6 +350,10 @@ static void show_vma_header_prefix(struct seq_file *m,
  		   MAJOR(dev), MINOR(dev), ino);
  }
  
@@ -1052,7 +1052,7 @@ index fd5fe3992819..0b3c36dc05b0 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  {
-@@ -378,8 +385,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+@@ -361,8 +368,17 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
@@ -1068,8 +1068,8 @@ index fd5fe3992819..0b3c36dc05b0 100644
 +bypass_orig_flow:
 +#endif
  		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
-         struct dentry *dentry = file->f_path.dentry;
-         if (dentry) {
+ 	}
+ 
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
 index b859aaeecb27..d9ca462a8974 100644
 --- a/fs/proc_namespace.c
@@ -1324,10 +1324,10 @@ index 1ff21c19b0b9..99adc5d71846 100644
  
  struct file; /* forward dec */
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 499f30227346..4d67185cc906 100644
+index 39866dbc5bf7..7a713cebdde0 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
-@@ -1397,6 +1397,10 @@ struct task_struct {
+@@ -1419,6 +1419,10 @@ struct task_struct {
  	 * New fields for task_struct should be added above here, so that
  	 * they are included in the randomized portion of task_struct.
  	 */
@@ -1363,7 +1363,7 @@ index 4ad367a05274..13371ade19ed 100644
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index e24d8009b8db..d54fbfa98d97 100644
+index fe72ebb759b9..a8cc6512fa78 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
 @@ -1185,12 +1185,18 @@ static int override_release(char __user *release, size_t len)
@@ -1385,3 +1385,4 @@ index e24d8009b8db..d54fbfa98d97 100644
  	up_read(&uts_sem);
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
+
