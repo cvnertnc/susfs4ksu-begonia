@@ -847,7 +847,7 @@ index c938f67dea42..378710edafa2 100644
  	else
  		retval = do_new_mount(&path, type_page, sb_flags, mnt_flags,
  				      dev_name, data_page);
-+#ifdef CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
++#if defined(CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT) && defined(CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT)
 +	// For both Legacy and Magic Mount KernelSU
 +	if (!retval && susfs_is_auto_add_sus_ksu_default_mount_enabled &&
 +			(!(flags & (MS_REMOUNT | MS_BIND | MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE)))) {
