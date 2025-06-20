@@ -1,6 +1,6 @@
-From 174311b83fc920466c94986e912659eb72c9a0fb Mon Sep 17 00:00:00 2001
+From e9b6022bb2fb3fda77f4b2bb9b30d5cc49ead4b0 Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Fri, 20 Jun 2025 17:20:53 +0300
+Date: Fri, 20 Jun 2025 19:37:12 +0300
 Subject: [PATCH] kernel: patched for susfs [astera]
 
 ---
@@ -18,13 +18,13 @@ Subject: [PATCH] kernel: patched for susfs [astera]
  fs/proc/task_mmu.c       |  16 ++
  fs/proc_namespace.c      |  23 +++
  fs/readdir.c             | 279 ++++++++++++++++++++++++++++++++-
- fs/stat.c                |   7 +
+ fs/stat.c                |  18 +++
  fs/statfs.c              |  43 +++++
  include/linux/mount.h    |   3 +
  include/linux/sched.h    |   4 +
  kernel/kallsyms.c        |  11 ++
  kernel/sys.c             |   6 +
- 20 files changed, 1084 insertions(+), 3 deletions(-)
+ 20 files changed, 1095 insertions(+), 3 deletions(-)
 
 diff --git a/fs/Makefile b/fs/Makefile
 index c48e22a61fc0..c64192cd5765 100644
@@ -1773,7 +1773,7 @@ index e6f4c7b8884b..9f281557aa60 100644
  	error = iterate_dir(f.file, &buf.ctx);
  	if (error >= 0)
 diff --git a/fs/stat.c b/fs/stat.c
-index e3845fe2d4c8..6502928260dc 100644
+index e3845fe2d4c8..fc63281a507d 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -17,6 +17,9 @@
@@ -1786,7 +1786,7 @@ index e3845fe2d4c8..6502928260dc 100644
  
  #include <linux/uaccess.h>
  #include <asm/unistd.h>
-@@ -30,6 +33,10 @@
+@@ -30,8 +33,23 @@
   * found on the VFS inode structure.  This is the default if no getattr inode
   * operation is supplied.
   */
@@ -1796,7 +1796,20 @@ index e3845fe2d4c8..6502928260dc 100644
 +
  void generic_fillattr(struct inode *inode, struct kstat *stat)
  {
++#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
++	if (likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC) &&
++			unlikely(inode->i_state & INODE_STATE_SUS_KSTAT)) {
++		susfs_sus_ino_for_generic_fillattr(inode->i_ino, stat);
++		stat->mode = inode->i_mode;
++		stat->rdev = inode->i_rdev;
++		stat->uid = inode->i_uid;
++		stat->gid = inode->i_gid;
++		return;
++	}
++#endif
  	stat->dev = inode->i_sb->s_dev;
+ 	stat->ino = inode->i_ino;
+ 	stat->mode = inode->i_mode;
 diff --git a/fs/statfs.c b/fs/statfs.c
 index e6ceb3e8774f..5f334374baff 100644
 --- a/fs/statfs.c
