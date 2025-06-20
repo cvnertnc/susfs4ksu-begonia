@@ -1,15 +1,15 @@
-From caa66aa65403fd6195b52c5437fc80e2bcf866c4 Mon Sep 17 00:00:00 2001
+From 3b30a1331d3a6f0cd2a9e384233002493ff9c4d0 Mon Sep 17 00:00:00 2001
 From: backslashxx <118538522+backslashxx@users.noreply.github.com>
 Date: Sat, 22 Feb 2025 22:53:48 +0800
-Subject: [PATCH] KernelSU: integrate scope-minimized manual hooks - k4.14 v1.4 [astera, nova, power]
+Subject: [PATCH] KernelSU: integrate scope-minimized manual hooks - k4.14 v1.5
 
 This refactors original KSU hooks to replace deep kernel function hooks with targeted hooks.
 This backports KernelSU pr#1657 and having pr#2084 elements (32-bit sucompat).
 It reduces the scope of kernel function interception and still maintains full fucntionality.
 
 This commit is a squash of the following:
-*	fs/exec: do_execve: ksu_handle_execveat_ksud/sucompat hook
-*	fs/exec: compat_do_execve: ksu_handle_execveat_sucompat hook
+*	fs/exec: do_execve: ksu_handle_execve_sucompat hook
+*	fs/exec: compat_do_execve: ksu_handle_execve_sucompat hook
 	fs/open: sys_faccessat: ksu_handle_faccessat hook
 *	fs/read_write: sys_read: ksu_handle_sys_read hook
 *	fs/stat: sys_newfstatat: ksu_handle_stat hook
@@ -19,16 +19,14 @@ This commit is a squash of the following:
 references: KernelSU pr#1657, pr#2084
 	https://kernelsu.org/guide/how-to-integrate-for-non-gki.html
 
-curl -LSs https://github.com/backslashxx/mojito_krenol/commit/caa66aa.patch | patch -p1
-
 Signed-off-by: backslashxx <118538522+backslashxx@users.noreply.github.com>
 ---
  drivers/input/input.c | 10 ++++++++++
- fs/exec.c             | 26 ++++++++++++++++++++++++++
+ fs/exec.c             | 20 ++++++++++++++++++++
  fs/open.c             |  9 +++++++++
  fs/read_write.c       | 10 ++++++++++
  fs/stat.c             | 11 +++++++++++
- 5 files changed, 66 insertions(+)
+ 5 files changed, 60 insertions(+)
 
 diff --git a/drivers/input/input.c b/drivers/input/input.c
 index 85e9c9649da8..e2628631c174 100644
@@ -57,16 +55,16 @@ index 85e9c9649da8..e2628631c174 100644
  
  		spin_lock_irqsave(&dev->event_lock, flags);
 diff --git a/fs/exec.c b/fs/exec.c
-index dadeba10b894..5f79b3fcc8d3 100644
+index dadeba10b894..9e3e46a1f211 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1968,11 +1968,31 @@ void set_dumpable(struct mm_struct *mm, int value)
+@@ -1968,11 +1968,28 @@ void set_dumpable(struct mm_struct *mm, int value)
  	} while (cmpxchg(&mm->flags, old, new) != old);
  }
  
 +#ifdef CONFIG_KSU
 +extern bool ksu_execveat_hook __read_mostly;
-+extern __attribute__((hot, always_inline)) int ksu_handle_execve_sucompat(int *fd,
++extern __attribute__((hot)) int ksu_handle_execve_sucompat(int *fd,
 +				const char __user **filename_user,
 +				void *__never_use_argv, void *__never_use_envp,
 +				int *__never_use_flags);
@@ -84,29 +82,23 @@ index dadeba10b894..5f79b3fcc8d3 100644
  		const char __user *const __user *, envp)
  {
 +#ifdef CONFIG_KSU
-+	if (unlikely(ksu_execveat_hook))
-+		ksu_handle_execve_ksud(filename, argv);
-+	else
-+		ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
++	ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
 +#endif
  	return do_execve(getname(filename), argv, envp);
  }
  
-@@ -1994,6 +2014,12 @@ COMPAT_SYSCALL_DEFINE3(execve, const char __user *, filename,
+@@ -1994,6 +2011,9 @@ COMPAT_SYSCALL_DEFINE3(execve, const char __user *, filename,
  	const compat_uptr_t __user *, argv,
  	const compat_uptr_t __user *, envp)
  {
 +#ifdef CONFIG_KSU // 32-bit ksud and 32-on-64 support
-+	if (unlikely(ksu_execveat_hook))
-+		ksu_handle_compat_execve_ksud(filename, argv);
-+	else
-+		ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
++	ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);
 +#endif
  	return compat_do_execve(getname(filename), argv, envp);
  }
  
 diff --git a/fs/open.c b/fs/open.c
-index 548494f1277c..f4a1173fbfec 100644
+index 548494f1277c..2c55e00647ec 100644
 --- a/fs/open.c
 +++ b/fs/open.c
 @@ -354,6 +354,11 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
@@ -114,7 +106,7 @@ index 548494f1277c..f4a1173fbfec 100644
  }
  
 +#ifdef CONFIG_KSU
-+extern __attribute__((hot, always_inline)) int ksu_handle_faccessat(int *dfd,
++extern __attribute__((hot)) int ksu_handle_faccessat(int *dfd,
 +		const char __user **filename_user, int *mode, int *flags);
 +#endif
 +
@@ -161,7 +153,7 @@ index 0da6e4f19d7f..aa4bae3d71b8 100644
  		if (ret >= 0)
  			file_pos_write(f.file, pos);
 diff --git a/fs/stat.c b/fs/stat.c
-index 0fda4b6b8fb2..aab615874b55 100644
+index 0fda4b6b8fb2..41446ee869eb 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
 @@ -353,6 +353,11 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
@@ -169,7 +161,7 @@ index 0fda4b6b8fb2..aab615874b55 100644
  }
  
 +#ifdef CONFIG_KSU
-+extern __attribute__((hot, always_inline)) int ksu_handle_stat(int *dfd,
++extern __attribute__((hot)) int ksu_handle_stat(int *dfd,
 +			const char __user **filename_user, int *flags);
 +#endif
 +
@@ -196,4 +188,3 @@ index 0fda4b6b8fb2..aab615874b55 100644
  	error = vfs_fstatat(dfd, filename, &stat, flag);
  	if (error)
  		return error;
-
