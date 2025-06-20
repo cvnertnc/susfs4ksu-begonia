@@ -1,0 +1,409 @@
+From 6a7707dc38fc9217dbdc79fe471220383dec2369 Mon Sep 17 00:00:00 2001
+From: cvnertnc <the.civanertunc@gmail.com>
+Date: Fri, 20 Jun 2025 17:47:49 +0300
+Subject: [PATCH] kernel: ksud, core_hook: migrate ksud execution to
+ security_bprm_check This migrates ksud execution decision-making to
+ bprm_check_security. This requires passing proper argv and envp to a modified
+ _ksud handler aptly named 'ksu_handle_bprm_ksud'.
+
+[repo: KernelSU-Next branch: next]
+[repo: SukiSU-Ultra branch: nongki]
+
+Introduces:
+int ksu_handle_bprm_ksud(const char *filename, const char *argv1,
+				const char *envp_hex)
+
+(insert meme: oh wait, its all char?, always have been)
+
+which is adapted from:
+int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+			     struct user_arg_ptr *argv,
+			     struct user_arg_ptr *envp,
+			     int *flags)
+
+ksu_handle_bprm_ksud handles all the decision making, it decides when it is
+time to apply_kernelsu_rules depending if it sees "second_stage".
+
+For LSM hook, turns out we can pull out argv and envp from mm_struct.
+The code in here explains itself on how to do it.
+
+whole blob exists on arg_start to arg_end, so we just pull it out and grab next
+array after the first null terminator.
+
+as for envp, we pack it to hex and pass it to ksu_handle_bprm_ksud so it can strstr
+the whole blob.
+
+as for hardening:
+- proper checks (filtering, oob checks)
+- GFP_ATOMIC kmalloc to avoid or lower blocking time
+- spinlock protected copy_from_user_nofault
+
+My reasoning on protecting that usercopy is that on some devices,
+an unprotected nofault copy does NOT work well. While we can use
+copy_from_user, having proper work to keep atomicity is a good thing.
+backslashxx/KernelSU#21
+
+This change also provides an inlined copy_from_user_nofault for < 5.8.
+Reasonig behind this is that the old probe_user_write for 5.7 and below
+is NOT really _nofault as it doesnt have that pagefault_disable + enable
+which is the hallmark of these _nofault functions.
+
+While using strncpy_from_user_nofault was considered, this wont do, this will
+only copy up to the first \0.
+
+devlog:
+ximi-libra-test/android_kernel_xiaomi_libra@16e5dce...16c1f5f
+backslashxx/mojito_krenol@28642e6...728de0c
+
+References:
+https://elixir.bootlin.com/linux/v4.14.1/source/include/linux/mm_types.h#L429
+https://elixir.bootlin.com/linux/v4.14.1/source/include/linux/lsm_hooks.h
+--
+
+With this change, theres no need to use execve_ksud and execveat_ksud
+handlers anymore.
+
+On next commit, we clean or lock those up.
+
+Signed-off-by: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Signed-off-by: cvnertnc <the.civanertunc@gmail.com>
+
+-backslashxx/KernelSU#5
+-add LSM_HANDLER_TYPE definition
+__backslashxx/KernelSU@70c547e
+-on_post_fs_data to ksu_on_post_fs_data; apply_kernelsu_rules to ksu_apply_kernelsu_rules
+__3965a25
+-https://gitlab.com/pershoot/susfs4ksu/-/tree/gki-android14-6.1-dev
+---
+ kernel/core_hook.c     |  33 ++++++++
+ kernel/kernel_compat.c |  28 +++++++
+ kernel/kernel_compat.h |   1 +
+ kernel/ksud.c          | 167 +++++++++++++++++++++++++++++++++++++++++
+ kernel/ksud.h          |   3 +
+ 5 files changed, 232 insertions(+)
+
+diff --git a/kernel/core_hook.c b/kernel/core_hook.c
+index 2307e665e..fdf3170a3 100644
+--- a/kernel/core_hook.c
++++ b/kernel/core_hook.c
+@@ -7,6 +7,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/kernel.h>
+ #include <linux/kprobes.h>
++#include <linux/binfmts.h>
+ #ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
+ #include <linux/lsm_hooks.h>
+ #endif
+@@ -51,6 +52,12 @@
+ #define KSU_GET_CRED_RCU
+ #endif
+ 
++#ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
++#define LSM_HANDLER_TYPE static int
++#else
++#define LSM_HANDLER_TYPE int
++#endif
++
+ static bool ksu_module_mounted = false;
+ 
+ extern int handle_sepolicy(unsigned long arg3, void __user *arg4);
+@@ -760,6 +767,31 @@ int ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
+ }
+ #endif
+ 
++// needs some locking, checking with copy_from_user_nofault,
++// theres actually failed / incomplete copies
++static bool is_locked_copy_ok(void *to, const void __user *from, size_t len)
++{
++	DEFINE_SPINLOCK(ksu_usercopy_spinlock);
++	spin_lock(&ksu_usercopy_spinlock);
++	bool ret = !ksu_copy_from_user_nofault(to, from, len);
++	spin_unlock(&ksu_usercopy_spinlock);
++
++	return ret;
++}
++
++LSM_HANDLER_TYPE ksu_bprm_check(struct linux_binprm *bprm)
++{
++	char *filename = (char *)bprm->filename;
++
++	if (likely(!ksu_execveat_hook))
++		return 0;
++
++	ksu_handle_pre_ksud(filename);
++
++	return 0;
++
++}
++
+ #ifdef CONFIG_KSU_LSM_SECURITY_HOOKS
+ static int ksu_task_prctl(int option, unsigned long arg2, unsigned long arg3,
+ 			  unsigned long arg4, unsigned long arg5)
+@@ -782,6 +814,7 @@ static int ksu_task_fix_setuid(struct cred *new, const struct cred *old,
+ 
+ #ifndef MODULE
+ static struct security_hook_list ksu_hooks[] = {
++	LSM_HOOK_INIT(bprm_check_security, ksu_bprm_check),
+ 	LSM_HOOK_INIT(task_prctl, ksu_task_prctl),
+ 	LSM_HOOK_INIT(inode_rename, ksu_inode_rename),
+ 	LSM_HOOK_INIT(task_fix_setuid, ksu_task_fix_setuid),
+diff --git a/kernel/kernel_compat.c b/kernel/kernel_compat.c
+index 841a0e52f..faa1d99ed 100644
+--- a/kernel/kernel_compat.c
++++ b/kernel/kernel_compat.c
+@@ -88,7 +88,9 @@ struct file *ksu_filp_open_compat(const char *filename, int flags, umode_t mode)
+ 	// switch mnt_ns even if current is not wq_worker, to ensure what we open is the correct file in android mnt_ns, rather than user created mnt_ns
+ 	struct ksu_ns_fs_saved saved;
+ 	if (android_context_saved_enabled) {
++#ifdef CONFIG_KSU_DEBUG
+ 		pr_info("start switch current nsproxy and fs to android context\n");
++#endif
+ 		task_lock(current);
+ 		ksu_save_ns_fs(&saved);
+ 		ksu_load_ns_fs(&android_context_saved);
+@@ -99,7 +101,9 @@ struct file *ksu_filp_open_compat(const char *filename, int flags, umode_t mode)
+ 		task_lock(current);
+ 		ksu_load_ns_fs(&saved);
+ 		task_unlock(current);
++#ifdef CONFIG_KSU_DEBUG
+ 		pr_info("switch current nsproxy and fs back to saved successfully\n");
++#endif
+ 	}
+ 	return fp;
+ }
+@@ -173,3 +177,27 @@ long ksu_strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr,
+ 	return ret;
+ }
+ #endif
++
++long ksu_copy_from_user_nofault(void *dst, const void __user *src, size_t size)
++{
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
++	return copy_from_user_nofault(dst, src, size);
++#else
++	// https://elixir.bootlin.com/linux/v5.8/source/mm/maccess.c#L205
++	long ret = -EFAULT;
++	mm_segment_t old_fs = get_fs();
++
++	set_fs(USER_DS);
++	// tweaked to use ksu_access_ok
++	if (ksu_access_ok(src, size)) {
++		pagefault_disable();
++		ret = __copy_from_user_inatomic(dst, src, size);
++		pagefault_enable();
++	}
++	set_fs(old_fs);
++
++	if (ret)
++		return -EFAULT;
++	return 0;
++#endif
++}
+diff --git a/kernel/kernel_compat.h b/kernel/kernel_compat.h
+index 6d79f7edb..5ceb80947 100644
+--- a/kernel/kernel_compat.h
++++ b/kernel/kernel_compat.h
+@@ -35,5 +35,6 @@ extern ssize_t ksu_kernel_read_compat(struct file *p, void *buf, size_t count,
+ 				      loff_t *pos);
+ extern ssize_t ksu_kernel_write_compat(struct file *p, const void *buf,
+ 				       size_t count, loff_t *pos);
++extern long ksu_copy_from_user_nofault(void *dst, const void __user *src, size_t size);
+ 
+ #endif
+diff --git a/kernel/ksud.c b/kernel/ksud.c
+index ae336a130..e1efb0bd8 100644
+--- a/kernel/ksud.c
++++ b/kernel/ksud.c
+@@ -19,6 +19,7 @@
+ #include <linux/types.h>
+ #include <linux/uaccess.h>
+ #include <linux/workqueue.h>
++#include <linux/slab.h>
+ 
+ #include "allowlist.h"
+ #include "arch.h"
+@@ -158,6 +159,172 @@ static int __maybe_unused count(struct user_arg_ptr argv, int max)
+ 	return i;
+ }
+ 
++// since _ksud handler only uses argv and envp for comparisons
++// this can probably work
++// adapted from ksu_handle_execveat_ksud
++static int ksu_handle_bprm_ksud(const char *filename, const char *argv1, const char *envp_hex)
++{
++	static const char app_process[] = "/system/bin/app_process";
++	static bool first_app_process = true;
++
++	/* This applies to versions Android 10+ */
++	static const char system_bin_init[] = "/system/bin/init";
++	/* This applies to versions between Android 6 ~ 9  */
++	static const char old_system_init[] = "/init";
++	static bool init_second_stage_executed = false;
++
++	// return early when disabled
++	if (!ksu_execveat_hook)
++		return 0;
++
++	if (!filename)
++		return 0;
++
++	// debug! remove me!
++	pr_info("%s: filaname: %s argv1: %s \n", __func__, filename, argv1);
++	pr_info("%s: envp (hex): %s\n", __func__, envp_hex);
++
++	if (init_second_stage_executed)
++		goto first_app_process;
++
++	// /system/bin/init with argv1
++	if (!init_second_stage_executed
++		&& (!memcmp(filename, system_bin_init, sizeof(system_bin_init) - 1))) {
++		if (argv1 && !strcmp(argv1, "second_stage")) {
++			pr_info("%s: /system/bin/init second_stage executed\n", __func__);
++			ksu_apply_kernelsu_rules();
++			init_second_stage_executed = true;
++			ksu_android_ns_fs_check();
++		}
++	}
++
++	// /init with argv1
++	if (!init_second_stage_executed
++		&& (!memcmp(filename, old_system_init, sizeof(old_system_init) - 1))) {
++		if (argv1 && !strcmp(argv1, "--second-stage")) {
++			pr_info("%s: /init --second-stage executed\n", __func__);
++			ksu_apply_kernelsu_rules();
++			init_second_stage_executed = true;
++			ksu_android_ns_fs_check();
++		}
++	}
++
++	// /init without argv1/useless-argv1 but usable envp
++	// ksu_bprm_check passed it packed, so for pattern
++	// 494E49545F5345434F4E445F53544147453D31 = INIT_SECOND_STAGE=1
++	// 494E49545F5345434F4E445F53544147453D74727565 = INIT_SECOND_STAGE=true
++	// untested! TODO: test and debug me!
++	if (!init_second_stage_executed && envp_hex
++		&& (!memcmp(filename, old_system_init, sizeof(old_system_init) - 1))) {
++		if (strstr(envp_hex, "494E49545F5345434F4E445F53544147453D31")
++			|| strstr(envp_hex, "494E49545F5345434F4E445F53544147453D74727565") ) {
++			pr_info("%s: /init +envp: INIT_SECOND_STAGE executed\n", __func__);
++			ksu_apply_kernelsu_rules();
++			init_second_stage_executed = true;
++			ksu_android_ns_fs_check();
++		}
++	}
++
++first_app_process:
++	if (first_app_process && !strcmp(filename, app_process)) {
++		first_app_process = false;
++		pr_info("%s: exec app_process, /data prepared, second_stage: %d\n", __func__, init_second_stage_executed);
++		ksu_on_post_fs_data(); // actual ksud execution
++		stop_execve_hook();
++	}
++
++	return 0;
++}
++
++// needs some locking, checking with copy_from_user_nofault,
++// theres actually failed / incomplete copies
++static bool is_locked_copy_ok(void *to, const void __user *from, size_t len)
++{
++	DEFINE_SPINLOCK(ksu_usercopy_spinlock);
++	spin_lock(&ksu_usercopy_spinlock);
++	bool ret = !ksu_copy_from_user_nofault(to, from, len);
++	spin_unlock(&ksu_usercopy_spinlock);
++
++	return ret;
++}
++
++int ksu_handle_pre_ksud(const char *filename)
++{
++
++	if (likely(!ksu_execveat_hook))
++		return 0;
++
++	// not /system/bin/init, not /init, not /system/bin/app_process
++	// return 0;
++	if (likely(strcmp(filename, "/system/bin/init") && strcmp(filename, "/init")
++		&& strcmp(filename, "/system/bin/app_process") ))
++		return 0;
++
++	if (!current || !current->mm)
++		return 0;
++
++#ifdef CONFIG_COMPAT
++	static bool compat_check_done = false;
++	if (!compat_check_done && is_compat_task()) {
++		ksu_is_compat = true;
++		pr_info("%s: %s is running in compat mode\n", __func__, filename);
++		compat_check_done = true;
++	}
++#endif
++
++	// https://elixir.bootlin.com/linux/v4.14.1/source/include/linux/mm_types.h#L429
++	// unsigned long arg_start, arg_end, env_start, env_end;
++	unsigned long arg_start = current->mm->arg_start;
++	unsigned long arg_end = current->mm->arg_end;
++	unsigned long env_start = current->mm->env_start;
++	unsigned long env_end = current->mm->env_end;
++
++	size_t arg_len = arg_end - arg_start;
++	size_t envp_len = env_end - env_start;
++
++	if (arg_len == 0 || envp_len == 0) // this wont make sense, filter it
++		goto out;
++
++	char *args = kmalloc(arg_len + 1, GFP_ATOMIC);
++	char *envp = kmalloc(envp_len + 1, GFP_ATOMIC);
++	char *envp_hex = kmalloc(envp_len * 2 + 1, GFP_ATOMIC); // x2 since bin2hex
++	if (!args || !envp || !envp_hex)
++		goto out;
++
++	// we cant use strncpy on here, else it will truncate once it sees \0
++	if (!is_locked_copy_ok(args, (void __user *)arg_start, arg_len))
++		goto out;
++
++	if (!is_locked_copy_ok(envp, (void __user *)env_start, envp_len))
++		goto out;
++
++	args[arg_len] = '\0';
++
++	// I fail to simplify the loop so, lets just pack it
++	bin2hex(envp_hex, envp, envp_len);
++	envp_hex[envp_len * 2] = '\0';
++
++	// debug!
++	//pr_info("%s: envp (hex): %s\n", __func__, envp_hex);
++
++	// we only need argv1 !
++	// abuse strlen here since it only gets length up to \0
++	char *argv1 = args + strlen(args) + 1;
++	if (argv1 >= args + arg_len) // out of bounds!
++		argv1 = "";
++
++	// pass whole for envp?!!
++	// pr_info("%s: fname: %s argv1: %s \n", __func__, filename, argv1);
++	ksu_handle_bprm_ksud(filename, argv1, envp_hex);
++
++out:
++	kfree(args);
++	kfree(envp);
++	kfree(envp_hex);
++
++	return 0;
++}
++
+ // IMPORTANT NOTE: the call from execve_handler_pre WON'T provided correct value for envp and flags in GKI version
+ int ksu_handle_execveat_ksud(int *fd, struct filename **filename_ptr,
+ 			     struct user_arg_ptr *argv,
+diff --git a/kernel/ksud.h b/kernel/ksud.h
+index cc2df243a..7fff48079 100644
+--- a/kernel/ksud.h
++++ b/kernel/ksud.h
+@@ -11,4 +11,7 @@ bool ksu_is_safe_mode(void);
+ 
+ extern u32 ksu_devpts_sid;
+ 
++extern bool ksu_execveat_hook __read_mostly;
++extern int ksu_handle_pre_ksud(const char *filename);
++
+ #endif
