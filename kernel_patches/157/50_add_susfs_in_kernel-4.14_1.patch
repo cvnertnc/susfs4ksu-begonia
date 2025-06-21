@@ -1,7 +1,7 @@
 From 86af23945dedafebd7ed9b72451730b08854a97c Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
 Date: Sat, 14 Jun 2025 12:28:51 +0300
-Subject: [PATCH] kernel: patched for susfs [astera]
+Subject: [PATCH] kernel: patched for susfs 1.5.7 [astera]
 
 ---
  fs/Makefile                |   2 +

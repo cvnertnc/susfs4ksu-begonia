@@ -1,7 +1,7 @@
 From 61c6ee8b4cceab0aaebdaa9cfc0be628e57f631c Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
 Date: Sat, 21 Jun 2025 22:18:32 +0300
-Subject: [PATCH] sukisu susfs v1.5.7
+Subject: [PATCH] kernel: implement susfs-v1.5.7
 
 ---
  kernel/Kconfig           | 144 +++++++++++
