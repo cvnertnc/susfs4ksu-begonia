@@ -1,7 +1,7 @@
 From 86af23945dedafebd7ed9b72451730b08854a97c Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
 Date: Sat, 14 Jun 2025 12:28:51 +0300
-Subject: [PATCH] kernel: patched for susfs [astera]
+Subject: [PATCH] kernel: patched for susfs 1.5.7 [nova, power]
 
 ---
  fs/Makefile                |   2 +
@@ -1649,27 +1649,26 @@ index 4ad367a05274..13371ade19ed 100644
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index e972caabc6db..dc36374294b8 100644
+index fe72ebb759b9..a8cc6512fa78 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
-@@ -1187,6 +1187,9 @@ static int override_release(char __user *release, size_t len)
+@@ -1185,12 +1185,18 @@ static int override_release(char __user *release, size_t len)
+ 	return ret;
+ }
  
- 
- static uint64_t netbpfload_pid = 0;
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +extern void susfs_spoof_uname(struct new_utsname* tmp);
 +#endif
  SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
  {
  	struct new_utsname tmp;
-@@ -1201,6 +1204,9 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
- 			 current->comm, current->pid, tmp.release);
- 	}
- 	up_read(&uts_sem);
+ 
+ 	down_read(&uts_sem);
+ 	memcpy(&tmp, utsname(), sizeof(tmp));
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +	susfs_spoof_uname(&tmp);
 +#endif
+ 	up_read(&uts_sem);
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
- 
 
