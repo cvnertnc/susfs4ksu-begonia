@@ -1,6 +1,6 @@
-From 61c6ee8b4cceab0aaebdaa9cfc0be628e57f631c Mon Sep 17 00:00:00 2001
+From 0eb8c627625b82210c275ffd98356c1b2859fc9b Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Sat, 21 Jun 2025 22:18:32 +0300
+Date: Mon, 23 Jun 2025 09:26:25 +0300
 Subject: [PATCH] kernel: implement susfs-v1.5.7
 
 ---
@@ -9,7 +9,7 @@ Subject: [PATCH] kernel: implement susfs-v1.5.7
  kernel/allowlist.c       |  10 +-
  kernel/apk_sign.c        |   2 +-
  kernel/apk_sign.h        |   2 +-
- kernel/core_hook.c       | 515 +++++++++++++++++++++++++++++++++++++--
+ kernel/core_hook.c       | 501 ++++++++++++++++++++++++++++++++++++++-
  kernel/kernel_compat.c   |  10 +
  kernel/kernel_compat.h   |   1 +
  kernel/kpm/compact.c     |   2 +-
@@ -23,7 +23,7 @@ Subject: [PATCH] kernel: implement susfs-v1.5.7
  kernel/sucompat.c        |  72 +++++-
  kernel/throne_tracker.c  |   4 +-
  kernel/throne_tracker.h  |   2 +-
- 19 files changed, 957 insertions(+), 61 deletions(-)
+ 19 files changed, 950 insertions(+), 54 deletions(-)
 
 diff --git a/kernel/Kconfig b/kernel/Kconfig
 index 558523da9..0d16ae913 100644
@@ -341,7 +341,7 @@ index 786d17bcf..10013ecf5 100644
  #endif
 \ No newline at end of file
 diff --git a/kernel/core_hook.c b/kernel/core_hook.c
-index 0885ea73e..e70d27be2 100644
+index 0885ea73e..7762470be 100644
 --- a/kernel/core_hook.c
 +++ b/kernel/core_hook.c
 @@ -37,6 +37,10 @@
@@ -986,7 +986,7 @@ index 0885ea73e..e70d27be2 100644
  	if (!is_zygote_child) {
  		pr_info("handle umount ignore non zygote child: %d\n",
  			current->pid);
-@@ -655,19 +1127,24 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
+@@ -655,6 +1127,10 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  		current->pid);
  #endif
  
@@ -996,24 +996,11 @@ index 0885ea73e..e70d27be2 100644
 +#else
  	// fixme: use `collect_mounts` and `iterate_mount` to iterate all mountpoint and
  	// filter the mountpoint whose target is `/data/adb`
--	try_umount("/system", true, 0);
--	try_umount("/vendor", true, 0);
--	try_umount("/product", true, 0);
--	try_umount("/system_ext", true, 0);
-+	ksu_try_umount("/system", true, 0);
-+	ksu_try_umount("/vendor", true, 0);
-+	ksu_try_umount("/product", true, 0);
-+	ksu_try_umount("/system_ext", true, 0);
- 
- 	// try umount modules path
--	try_umount("/data/adb/modules", false, MNT_DETACH);
-+	ksu_try_umount("/data/adb/modules", false, MNT_DETACH);
- 
+ 	try_umount("/system", true, 0);
+@@ -668,6 +1144,7 @@ int ksu_handle_setuid(struct cred *new, const struct cred *old)
  	// try umount ksu temp path
--	try_umount("/debug_ramdisk", false, MNT_DETACH);
--	try_umount("/sbin", false, MNT_DETACH);
-+	ksu_try_umount("/debug_ramdisk", false, MNT_DETACH);
-+	ksu_try_umount("/sbin", false, MNT_DETACH);
+ 	try_umount("/debug_ramdisk", false, MNT_DETACH);
+ 	try_umount("/sbin", false, MNT_DETACH);
 +#endif
  
  	return 0;
