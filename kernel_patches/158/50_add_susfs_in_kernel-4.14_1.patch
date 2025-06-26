@@ -1,32 +1,25 @@
-From b44d223b04832e39f75aba8ed3e6c626f442be0e Mon Sep 17 00:00:00 2001
+From 6d7f2b3d10e7169eb12fe02bef38dcef4e766171 Mon Sep 17 00:00:00 2001
 From: cvnertnc <the.civanertunc@gmail.com>
-Date: Thu, 26 Jun 2025 23:51:56 +0300
+Date: Thu, 26 Jun 2025 13:12:33 +0300
 Subject: [PATCH] kernel: patched for susfs 1.5.8 [astera]
 
 ---
- fs/Makefile                |   2 +
- fs/dcache.c                |  14 ++
- fs/namei.c                 | 238 +++++++++++++++++++++++++++++-
- fs/namespace.c             | 295 ++++++++++++++++++++++++++++++++++++-
- fs/notify/fdinfo.c         |  48 ++++++
- fs/overlayfs/inode.c       |   8 +
- fs/overlayfs/overlayfs.h   |   3 +
- fs/overlayfs/readdir.c     |  12 ++
- fs/overlayfs/super.c       |  12 ++
- fs/overlayfs/util.c        |  14 ++
- fs/proc/cmdline.c          |   9 ++
- fs/proc/fd.c               |  17 +++
- fs/proc/task_mmu.c         |  16 ++
- fs/proc_namespace.c        |  23 +++
- fs/readdir.c               | 279 ++++++++++++++++++++++++++++++++++-
- fs/stat.c                  |   7 +
- fs/statfs.c                |  21 +++
- include/linux/mount.h      |   3 +
- include/linux/sched.h      |   4 +
- include/uapi/linux/magic.h |   1 +
- kernel/kallsyms.c          |  11 ++
- kernel/sys.c               |   6 +
- 22 files changed, 1039 insertions(+), 4 deletions(-)
+ fs/Makefile           |   2 +
+ fs/namei.c            | 238 +++++++++++++++++++++++++++++++++-
+ fs/namespace.c        | 295 +++++++++++++++++++++++++++++++++++++++++-
+ fs/notify/fdinfo.c    |  48 +++++++
+ fs/proc/cmdline.c     |   9 ++
+ fs/proc/fd.c          |  17 +++
+ fs/proc/task_mmu.c    |  16 +++
+ fs/proc_namespace.c   |  23 ++++
+ fs/readdir.c          | 279 ++++++++++++++++++++++++++++++++++++++-
+ fs/stat.c             |   7 +
+ fs/statfs.c           |  21 +++
+ include/linux/mount.h |   3 +
+ include/linux/sched.h |   4 +
+ kernel/kallsyms.c     |  11 ++
+ kernel/sys.c          |   6 +
+ 15 files changed, 975 insertions(+), 4 deletions(-)
 
 diff --git a/fs/Makefile b/fs/Makefile
 index c48e22a61fc0..c64192cd5765 100644
@@ -41,45 +34,6 @@ index c48e22a61fc0..c64192cd5765 100644
  ifeq ($(CONFIG_BLOCK),y)
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
-diff --git a/fs/dcache.c b/fs/dcache.c
-index 0301c5dd5e5f..00ae21b0da55 100644
---- a/fs/dcache.c
-+++ b/fs/dcache.c
-@@ -39,6 +39,9 @@
- #include <linux/prefetch.h>
- #include <linux/ratelimit.h>
- #include <linux/list_lru.h>
-+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+#include <linux/susfs_def.h>
-+#endif
- 
- #include "internal.h"
- #include "mount.h"
-@@ -2225,6 +2228,11 @@ struct dentry *__d_lookup_rcu(const struct dentry *parent,
- 				continue;
- 			if (dentry_cmp(dentry, str, hashlen_len(hashlen)) != 0)
- 				continue;
-+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+			if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
-+				continue;
-+			}
-+#endif
- 		}
- 		*seqp = seq;
- 		return dentry;
-@@ -2308,6 +2316,12 @@ struct dentry *__d_lookup(const struct dentry *parent, const struct qstr *name)
- 		if (dentry->d_name.hash != hash)
- 			continue;
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+		if (dentry->d_inode && unlikely(dentry->d_inode->i_state & INODE_STATE_SUS_PATH) && likely(current->susfs_task_state & TASK_STRUCT_NON_ROOT_USER_APP_PROC)) {
-+			continue;
-+		}
-+#endif
-+
- 		spin_lock(&dentry->d_lock);
- 		if (dentry->d_parent != parent)
- 			goto next;
 diff --git a/fs/namei.c b/fs/namei.c
 index a5bc1e8d4641..d1a5a5d1ebcb 100644
 --- a/fs/namei.c
@@ -1028,111 +982,6 @@ index c62a87ee3b00..62e084ec0c6d 100644
  		seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
  			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
  			   inotify_mark_user_mask(mark));
-diff --git a/fs/overlayfs/inode.c b/fs/overlayfs/inode.c
-index d19cdfe53ff8..5db4237d75d8 100644
---- a/fs/overlayfs/inode.c
-+++ b/fs/overlayfs/inode.c
-@@ -69,6 +69,14 @@ int ovl_getattr(const struct path *path, struct kstat *stat,
- 	bool is_dir = S_ISDIR(dentry->d_inode->i_mode);
- 	int err;
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_OVERLAYFS
-+	ovl_path_lowerdata(dentry, &realpath);
-+	if (likely(realpath.mnt && realpath.dentry)) {
-+		old_cred = ovl_override_creds(dentry->d_sb);
-+		err = vfs_getattr(&realpath, stat, request_mask, flags);
-+		goto out;
-+	}
-+#endif
- 	type = ovl_path_real(dentry, &realpath);
- 	old_cred = ovl_override_creds(dentry->d_sb);
- 	err = vfs_getattr(&realpath, stat, request_mask, flags);
-diff --git a/fs/overlayfs/overlayfs.h b/fs/overlayfs/overlayfs.h
-index fdf83a10a9d3..c204e0908778 100644
---- a/fs/overlayfs/overlayfs.h
-+++ b/fs/overlayfs/overlayfs.h
-@@ -199,6 +199,9 @@ bool ovl_dentry_weird(struct dentry *dentry);
- enum ovl_path_type ovl_path_type(struct dentry *dentry);
- void ovl_path_upper(struct dentry *dentry, struct path *path);
- void ovl_path_lower(struct dentry *dentry, struct path *path);
-+#ifdef CONFIG_KSU_SUSFS_SUS_OVERLAYFS
-+void ovl_path_lowerdata(struct dentry *dentry, struct path *path);
-+#endif
- enum ovl_path_type ovl_path_real(struct dentry *dentry, struct path *path);
- struct dentry *ovl_dentry_upper(struct dentry *dentry);
- struct dentry *ovl_dentry_lower(struct dentry *dentry);
-diff --git a/fs/overlayfs/readdir.c b/fs/overlayfs/readdir.c
-index b00f1a9d21ad..aac4c49f21e8 100644
---- a/fs/overlayfs/readdir.c
-+++ b/fs/overlayfs/readdir.c
-@@ -838,7 +838,19 @@ static int ovl_dir_open(struct inode *inode, struct file *file)
- 	if (!od)
- 		return -ENOMEM;
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_OVERLAYFS
-+	ovl_path_lowerdata(file->f_path.dentry, &realpath);
-+	if (likely(realpath.mnt && realpath.dentry)) {
-+		// We still use '__OVL_PATH_UPPER' here which should be fine.  
-+		type = __OVL_PATH_UPPER;
-+		goto bypass_orig_flow;
-+	}
-+#endif
-+
- 	type = ovl_path_real(file->f_path.dentry, &realpath);
-+#ifdef CONFIG_KSU_SUSFS_SUS_OVERLAYFS
-+bypass_orig_flow:
-+#endif
- 	realfile = ovl_path_open(&realpath, file->f_flags);
- 	if (IS_ERR(realfile)) {
- 		kfree(od);
-diff --git a/fs/overlayfs/super.c b/fs/overlayfs/super.c
-index 9d3192f26cf6..3e727f94b811 100644
---- a/fs/overlayfs/super.c
-+++ b/fs/overlayfs/super.c
-@@ -282,6 +282,18 @@ static int ovl_statfs(struct dentry *dentry, struct kstatfs *buf)
- 	struct path path;
- 	int err;
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_OVERLAYFS
-+	ovl_path_lowerdata(root_dentry, &path);
-+	if (likely(path.mnt && path.dentry)) {
-+		err = vfs_statfs(&path, buf);
-+		if (!err) {
-+			buf->f_namelen = 255; // 255 for erofs, ext2/4, f2fs
-+			buf->f_type = path.dentry->d_sb->s_magic;
-+		}
-+		return err;
-+	}
-+#endif
-+
- 	ovl_path_real(root_dentry, &path);
- 
- 	err = vfs_statfs(&path, buf);
-diff --git a/fs/overlayfs/util.c b/fs/overlayfs/util.c
-index e2244c134c9c..8746024a17ea 100644
---- a/fs/overlayfs/util.c
-+++ b/fs/overlayfs/util.c
-@@ -142,6 +142,20 @@ void ovl_path_lower(struct dentry *dentry, struct path *path)
- 	*path = oe->numlower ? oe->lowerstack[0] : (struct path) { };
- }
- 
-+#ifdef CONFIG_KSU_SUSFS_SUS_OVERLAYFS
-+void ovl_path_lowerdata(struct dentry *dentry, struct path *path)
-+{
-+	struct ovl_entry *oe = dentry->d_fsdata;
-+
-+	if (oe->numlower) {
-+		path->mnt = oe->lowerstack[oe->numlower - 1].mnt;
-+		path->dentry = oe->lowerstack[oe->numlower - 1].dentry;
-+	} else {
-+		*path = (struct path) { };
-+	}
-+}
-+#endif
-+
- enum ovl_path_type ovl_path_real(struct dentry *dentry, struct path *path)
- {
- 	enum ovl_path_type type = ovl_path_type(dentry);
 diff --git a/fs/proc/cmdline.c b/fs/proc/cmdline.c
 index 3795733934f7..967ae6eeb7a9 100644
 --- a/fs/proc/cmdline.c
@@ -1871,18 +1720,6 @@ index 39866dbc5bf7..7a713cebdde0 100644
  	randomized_struct_fields_end
  
  	/* CPU-specific state of this task: */
-diff --git a/include/uapi/linux/magic.h b/include/uapi/linux/magic.h
-index c61c5633ced9..66eccfb2d5c6 100644
---- a/include/uapi/linux/magic.h
-+++ b/include/uapi/linux/magic.h
-@@ -33,6 +33,7 @@
- #define EFIVARFS_MAGIC		0xde5e81e4
- #define HOSTFS_SUPER_MAGIC	0x00c0ffee
- #define OVERLAYFS_SUPER_MAGIC	0x794c7630
-+#define FUSE_SUPER_MAGIC 0x65735546
- 
- #define MINIX_SUPER_MAGIC	0x137F		/* minix v1 fs, 14 char names */
- #define MINIX_SUPER_MAGIC2	0x138F		/* minix v1 fs, 30 char names */
 diff --git a/kernel/kallsyms.c b/kernel/kallsyms.c
 index 4ad367a05274..13371ade19ed 100644
 --- a/kernel/kallsyms.c
